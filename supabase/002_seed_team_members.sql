@@ -21,6 +21,9 @@ insert into team_members (name, role, day_rate, colour, display_order) values
   ('Gary Potter',        'subcontractor', 0,   '#EA580C', 11),
   ('Shaun Nolan',        'subcontractor', 0,   '#D97706', 12);
 
+-- Fix any existing misspelling: "Callum Ruffle" → "Callum Riffle"
+update team_members set name = 'Callum Riffle' where name = 'Callum Ruffle';
+
 -- Set default partner pairings
 -- George Deans <-> Callum Riffle
 update team_members

@@ -13,16 +13,16 @@ const SKIP_JOBS = new Set([
 /* ---- Helpers ---- */
 
 function excelDateToISO(val) {
-  if (val instanceof Date && !isNaN(val.getTime())) {
+  if (val instanceof Date && !isNaN(val.getTime()) && val.getFullYear() >= 2020) {
     return format(val, 'yyyy-MM-dd')
   }
   if (typeof val === 'number' && val > 30000 && val < 70000) {
     const d = new Date(Math.round((val - 25569) * 86400000))
-    if (!isNaN(d.getTime())) return format(d, 'yyyy-MM-dd')
+    if (!isNaN(d.getTime()) && d.getFullYear() >= 2020) return format(d, 'yyyy-MM-dd')
   }
   if (typeof val === 'string' && val.trim()) {
     const d = new Date(val)
-    if (!isNaN(d.getTime()) && d.getFullYear() > 2000) return format(d, 'yyyy-MM-dd')
+    if (!isNaN(d.getTime()) && d.getFullYear() >= 2020) return format(d, 'yyyy-MM-dd')
   }
   return null
 }
@@ -193,10 +193,17 @@ export default function ImportPage() {
       'ethan', 'kaylan', 'josh', 'andrew', 'ashley', 'gary', 'shaun',
     ]
 
+    // Find the date column — look for a header cell that says "date" (not "day + date")
+    let dateCol = 1 // default to column B
+    for (let i = 0; i < Math.min(raw.length, 10); i++) {
+      const cells = (raw[i] || []).map(v => String(v || '').toLowerCase().trim())
+      const dci = cells.findIndex(c => c === 'date')
+      if (dci >= 0) { dateCol = dci; break }
+    }
+
     // Find header row with crew names
     let hdrIdx = -1
     let crewCols = []
-    const dateCol = 0
 
     for (let i = 0; i < Math.min(raw.length, 15); i++) {
       const cells = (raw[i] || []).map(v => String(v || '').toLowerCase().trim())
@@ -509,17 +516,24 @@ export default function ImportPage() {
               <h3 className="text-sm font-semibold text-navy">Step 1: Job Master Table</h3>
               <p className="text-xs text-gray-500">{jobRows.length} jobs found (jobs 1–6 excluded)</p>
             </div>
-            <button
-              onClick={importJobs}
-              disabled={importingJobs}
-              className="flex items-center gap-1.5 bg-orange text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-dark disabled:opacity-50"
-            >
-              <Upload size={14} />
-              {importingJobs ? 'Importing...' : `Import ${jobRows.length} Jobs`}
-            </button>
+            {jobStatus?.success ? (
+              <div className="flex items-center gap-2 text-green-700 bg-green-50 px-4 py-2 rounded-lg text-sm font-medium">
+                <CheckCircle size={16} className="text-green-600" />
+                {jobStatus.message}
+              </div>
+            ) : (
+              <button
+                onClick={importJobs}
+                disabled={importingJobs}
+                className="flex items-center gap-1.5 bg-orange text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-dark disabled:opacity-50"
+              >
+                <Upload size={14} />
+                {importingJobs ? 'Importing...' : `Import ${jobRows.length} Jobs`}
+              </button>
+            )}
           </div>
 
-          <StatusBanner status={jobStatus} />
+          {jobStatus && !jobStatus.success && <StatusBanner status={jobStatus} />}
 
           <div className="max-h-[300px] overflow-y-auto">
             <table className="w-full text-sm">

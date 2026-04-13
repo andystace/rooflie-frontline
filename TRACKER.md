@@ -13,3 +13,6 @@
 | CLEAR-F01 | Clear all schedule data button on import page | Done |
 | BUG-FRONTLINE-05 | Fix job import duplicate key error — use upsert with onConflict | Done |
 | IMPORT-F01b | Fix Step 2 (Calendar View) import — sub-header parsing, GP column, skip non-productive | Done |
+| BUG-FRONTLINE-06 | Job import button — show green tick confirmation after successful import | Done |
+| BUG-FRONTLINE-07 | Calendar View "0 entries parsed" — fix date column detection (col A → col B) | Done |
+| BUG-FRONTLINE-08 | Fix "Callum Ruffle" → "Callum Riffle" in seed files + live DB note | Done |
