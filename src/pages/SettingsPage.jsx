@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Settings, Users, Target, Plus, Check, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Settings, Users, Target, Plus, Check, ToggleLeft, ToggleRight, Pencil, Trash2, X } from 'lucide-react'
 import { useTeam } from '../hooks/useTeam'
 import { useTargets } from '../hooks/useTargets'
 import { TEAM_ROLES } from '../lib/constants'
@@ -161,10 +161,13 @@ function MonthlyTargetsSection() {
 }
 
 function TeamSection() {
-  const { team, activeTeam, createMember, updateMember } = useTeam()
+  const { team, activeTeam, createMember, updateMember, deleteMember } = useTeam()
   const [showAdd, setShowAdd] = useState(false)
   const [newMember, setNewMember] = useState({ name: '', role: 'roofer', day_rate: 250, colour: '#2563EB' })
-  const [pairingSaved, setPairingSaved] = useState(null) // member id that just saved
+  const [pairingSaved, setPairingSaved] = useState(null)
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -182,6 +185,40 @@ function TeamSection() {
     }
   }
 
+  function startEdit(member) {
+    setEditingId(member.id)
+    setEditForm({
+      name: member.name,
+      role: member.role,
+      day_rate: member.day_rate,
+      colour: member.colour || '#6B7280',
+    })
+  }
+
+  async function saveEdit(id) {
+    try {
+      await updateMember(id, {
+        name: editForm.name,
+        role: editForm.role,
+        day_rate: Number(editForm.day_rate) || 0,
+        colour: editForm.colour,
+      })
+      setEditingId(null)
+    } catch (err) {
+      alert(err.message)
+    }
+  }
+
+  async function handleDelete(id) {
+    try {
+      await deleteMember(id)
+      setConfirmDeleteId(null)
+    } catch (err) {
+      alert('Cannot delete: ' + err.message)
+      setConfirmDeleteId(null)
+    }
+  }
+
   async function toggleActive(member) {
     try {
       await updateMember(member.id, { active: !member.active })
@@ -195,29 +232,22 @@ function TeamSection() {
       const oldPartnerId = member.default_partner_id
 
       if (!newPartnerId) {
-        // Removing pairing — clear both sides
         if (oldPartnerId) {
           await updateMember(oldPartnerId, { default_partner_id: null })
         }
         await updateMember(member.id, { default_partner_id: null })
       } else {
-        // If the new partner was already paired with someone else, unpair that third person
         const newPartner = team.find(m => m.id === newPartnerId)
         if (newPartner?.default_partner_id && newPartner.default_partner_id !== member.id) {
           await updateMember(newPartner.default_partner_id, { default_partner_id: null })
         }
-
-        // If this member was already paired with someone else, unpair them
         if (oldPartnerId && oldPartnerId !== newPartnerId) {
           await updateMember(oldPartnerId, { default_partner_id: null })
         }
-
-        // Set both sides of the new pairing
         await updateMember(member.id, { default_partner_id: newPartnerId })
         await updateMember(newPartnerId, { default_partner_id: member.id })
       }
 
-      // Show saved feedback
       setPairingSaved(member.id)
       setTimeout(() => setPairingSaved(null), 2000)
     } catch (err) {
@@ -230,14 +260,14 @@ function TeamSection() {
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
         <div>
           <h3 className="text-sm font-semibold text-navy">Team Members</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Manage team members. Deactivate instead of deleting to preserve history.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Manage team members — edit, delete, or deactivate to preserve history.</p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
           className="flex items-center gap-1 bg-orange text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-orange-dark"
         >
           <Plus size={14} />
-          Add
+          Add Member
         </button>
       </div>
 
@@ -282,51 +312,137 @@ function TeamSection() {
       )}
 
       <div className="divide-y divide-gray-100">
-        {team.map(member => (
-          <div key={member.id} className={`flex items-center gap-3 px-4 py-3 ${!member.active ? 'opacity-50' : ''}`}>
-            <div
-              className="w-3 h-3 rounded-full flex-shrink-0"
-              style={{ backgroundColor: member.colour || '#6B7280' }}
-            />
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium truncate">{member.name}</div>
-              <div className="text-xs text-gray-500 capitalize">
-                {member.role} {member.day_rate > 0 ? `\u2022 \u00A3${member.day_rate}/day` : ''}
+        {team.map(member => {
+          const isEditing = editingId === member.id
+          const isConfirmingDelete = confirmDeleteId === member.id
+
+          if (isEditing) {
+            return (
+              <div key={member.id} className="px-4 py-3 bg-blue-50/50">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <input
+                    value={editForm.name}
+                    onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                    placeholder="Name"
+                    autoFocus
+                  />
+                  <select
+                    value={editForm.role}
+                    onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                  >
+                    {TEAM_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                  <input
+                    type="number"
+                    value={editForm.day_rate}
+                    onChange={e => setEditForm(f => ({ ...f, day_rate: e.target.value }))}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                    placeholder="Day rate"
+                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={editForm.colour}
+                      onChange={e => setEditForm(f => ({ ...f, colour: e.target.value }))}
+                      className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
+                    />
+                    <button
+                      onClick={() => saveEdit(member.id)}
+                      className="flex-1 bg-orange text-white rounded text-sm font-medium hover:bg-orange-dark"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="px-3 text-sm text-gray-600 hover:text-gray-800"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
+          return (
+            <div key={member.id} className={`flex items-center gap-3 px-4 py-3 ${!member.active ? 'opacity-50' : ''}`}>
+              <div
+                className="w-3 h-3 rounded-full flex-shrink-0"
+                style={{ backgroundColor: member.colour || '#6B7280' }}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{member.name}</div>
+                <div className="text-xs text-gray-500 capitalize">
+                  {member.role} {member.day_rate > 0 ? `\u2022 \u00A3${member.day_rate}/day` : ''}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {member.active && (
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={member.default_partner_id || ''}
+                      onChange={e => handlePairingChange(member, e.target.value || null)}
+                      className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-orange"
+                    >
+                      <option value="">No partner</option>
+                      {activeTeam.filter(m => m.id !== member.id).map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                    {pairingSaved === member.id && (
+                      <span className="flex items-center gap-0.5 text-green-600 text-xs font-medium">
+                        <Check size={12} /> Saved
+                      </span>
+                    )}
+                  </div>
+                )}
+                <button
+                  onClick={() => startEdit(member)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                  title="Edit"
+                >
+                  <Pencil size={16} className="text-gray-500" />
+                </button>
+                {isConfirmingDelete ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleDelete(member.id)}
+                      className="px-2 py-0.5 bg-red-600 text-white text-xs rounded font-medium hover:bg-red-700"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="p-0.5 hover:bg-gray-100 rounded"
+                    >
+                      <X size={14} className="text-gray-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteId(member.id)}
+                    className="p-1 hover:bg-red-50 rounded"
+                    title="Delete"
+                  >
+                    <Trash2 size={16} className="text-gray-400 hover:text-red-500" />
+                  </button>
+                )}
+                <button
+                  onClick={() => toggleActive(member)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                  title={member.active ? 'Deactivate' : 'Activate'}
+                >
+                  {member.active
+                    ? <ToggleRight size={20} className="text-green-600" />
+                    : <ToggleLeft size={20} className="text-gray-400" />
+                  }
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {member.active && (
-                <div className="flex items-center gap-1">
-                  <select
-                    value={member.default_partner_id || ''}
-                    onChange={e => handlePairingChange(member, e.target.value || null)}
-                    className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-orange"
-                  >
-                    <option value="">No partner</option>
-                    {activeTeam.filter(m => m.id !== member.id).map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
-                  {pairingSaved === member.id && (
-                    <span className="flex items-center gap-0.5 text-green-600 text-xs font-medium">
-                      <Check size={12} /> Saved
-                    </span>
-                  )}
-                </div>
-              )}
-              <button
-                onClick={() => toggleActive(member)}
-                className="p-1 hover:bg-gray-100 rounded"
-                title={member.active ? 'Deactivate' : 'Activate'}
-              >
-                {member.active
-                  ? <ToggleRight size={20} className="text-green-600" />
-                  : <ToggleLeft size={20} className="text-gray-400" />
-                }
-              </button>
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

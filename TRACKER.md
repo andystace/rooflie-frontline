@@ -7,3 +7,5 @@
 | BUG-FORECAST-02 | Add forgot password link to sign-in screen (Supabase reset email) | Done |
 | CREW-F01 | Update crew names: Andrew Stace, Greg Stace, George Deans | Done |
 | CREW-F01b | Update full crew list with surnames and correct subcontractors | Done |
+| BUG-FRONTLINE-03 | Add edit and delete functions to Settings → Team Members | Done |
+| ENH-FRONTLINE-01 | Bulk assign crew to a job on the schedule | Done |

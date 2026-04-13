@@ -86,11 +86,17 @@ export function useTeam() {
     return data
   }
 
+  async function deleteMember(id) {
+    const { error } = await supabase.from('team_members').delete().eq('id', id)
+    if (error) throw error
+    setTeam(prev => prev.filter(m => m.id !== id))
+  }
+
   function getPartner(memberId) {
     const member = team.find(m => m.id === memberId)
     if (!member?.default_partner_id) return null
     return team.find(m => m.id === member.default_partner_id) || null
   }
 
-  return { team, activeTeam, sortedTeam, sortedActiveTeam, loading, fetchTeam, createMember, updateMember, getPartner }
+  return { team, activeTeam, sortedTeam, sortedActiveTeam, loading, fetchTeam, createMember, updateMember, deleteMember, getPartner }
 }

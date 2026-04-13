@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import resourceTimelinePlugin from '@fullcalendar/resource-timeline'
 import interactionPlugin from '@fullcalendar/interaction'
-import { Calendar, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
+import { Calendar, ChevronLeft, ChevronRight, AlertTriangle, Users } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, addWeeks, eachDayOfInterval, isWeekend, parseISO } from 'date-fns'
 import { useTeam } from '../hooks/useTeam'
 import { useJobs } from '../hooks/useJobs'
@@ -14,6 +14,7 @@ import { calcMonthGpForecast, calcUtilisation, calcMonthTurnover, calcJobOverrun
 import SummaryStrip from '../components/SummaryStrip'
 import QuickEntryPopup from '../components/QuickEntryPopup'
 import ScheduleEntryModal from '../components/ScheduleEntryModal'
+import BulkAssignModal from '../components/BulkAssignModal'
 
 export default function SchedulePage() {
   const calendarRef = useRef(null)
@@ -26,6 +27,7 @@ export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [quickEntry, setQuickEntry] = useState(null)   // fast add popup
   const [editEntry, setEditEntry] = useState(null)      // edit existing
+  const [showBulkAssign, setShowBulkAssign] = useState(false)
   const [allJobEntries, setAllJobEntries] = useState([])
 
   // Compute date range based on view
@@ -236,6 +238,11 @@ export default function SchedulePage() {
     }
   }, [updateEntry])
 
+  // Bulk assign handler
+  const handleBulkAssign = useCallback(async (payloads) => {
+    await createEntries(payloads)
+  }, [createEntries])
+
   return (
     <div className="p-4 max-w-[1600px] mx-auto space-y-3">
       <SummaryStrip
@@ -253,6 +260,13 @@ export default function SchedulePage() {
           <h2 className="text-lg font-bold text-navy">Schedule</h2>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBulkAssign(true)}
+            className="flex items-center gap-1.5 bg-orange text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-orange-dark"
+          >
+            <Users size={14} />
+            Bulk Assign
+          </button>
           <div className="flex bg-gray-100 rounded-lg p-0.5">
             {['week', 'month'].map(v => (
               <button
@@ -366,6 +380,16 @@ export default function SchedulePage() {
           onSave={handleEditSave}
           onDelete={deleteEntry}
           onClose={() => setEditEntry(null)}
+        />
+      )}
+
+      {/* Bulk assign modal */}
+      {showBulkAssign && (
+        <BulkAssignModal
+          team={team}
+          jobs={jobs}
+          onAssign={handleBulkAssign}
+          onClose={() => setShowBulkAssign(false)}
         />
       )}
     </div>
