@@ -16,6 +16,7 @@ export default defineConfig({
             '@fullcalendar/interaction',
           ],
           supabase: ['@supabase/supabase-js'],
+          xlsx: ['xlsx'],
         },
       },
     },

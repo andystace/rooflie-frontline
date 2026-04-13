@@ -9,3 +9,5 @@
 | CREW-F01b | Update full crew list with surnames and correct subcontractors | Done |
 | BUG-FRONTLINE-03 | Add edit and delete functions to Settings → Team Members | Done |
 | ENH-FRONTLINE-01 | Bulk assign crew to a job on the schedule | Done |
+| IMPORT-F01 | Spreadsheet import tool at /import (jobs + schedule from .xlsx) | Done |
+| CLEAR-F01 | Clear all schedule data button on import page | Done |
