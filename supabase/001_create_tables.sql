@@ -1,5 +1,5 @@
 -- =============================================
--- Rooflie Production Forecast — Supabase Tables
+-- Rooflie Frontline — Supabase Tables
 -- Run this SQL in the Supabase SQL Editor
 -- =============================================
 

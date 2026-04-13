@@ -28,10 +28,15 @@ export function useAuth() {
     if (error) throw error
   }, [])
 
+  const resetPassword = useCallback(async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email)
+    if (error) throw error
+  }, [])
+
   // Derive display name from email: andrew@staceroofing.co.uk → "Andrew"
   const displayName = user?.email
     ? user.email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     : null
 
-  return { user, loading, signIn, signOut, displayName }
+  return { user, loading, signIn, signOut, resetPassword, displayName }
 }

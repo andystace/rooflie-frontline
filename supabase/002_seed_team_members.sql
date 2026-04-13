@@ -5,11 +5,11 @@
 
 -- Insert team members (we'll update partner IDs after all are inserted)
 insert into team_members (name, role, day_rate, colour, display_order) values
-  ('George',                'roofer',        250, '#2563EB', 1),
+  ('George Deans',          'roofer',        250, '#2563EB', 1),
   ('Callum',                'roofer',        250, '#DC2626', 2),
-  ('Greg',                  'roofer',        250, '#059669', 3),
+  ('Greg Stace',            'roofer',        250, '#059669', 3),
   ('Noggy',                 'roofer',        250, '#D97706', 4),
-  ('Andy',                  'roofer',        250, '#7C3AED', 5),
+  ('Andrew Stace',          'roofer',        250, '#7C3AED', 5),
   ('Jack',                  'labourer',      150, '#DB2777', 6),
   ('Josh',                  'labourer',      150, '#0891B2', 7),
   ('Julian',                'subcontractor', 0,   '#65A30D', 8),
@@ -23,17 +23,17 @@ insert into team_members (name, role, day_rate, colour, display_order) values
 -- George <-> Callum
 update team_members
   set default_partner_id = (select id from team_members where name = 'Callum')
-  where name = 'George';
+  where name = 'George Deans';
 
 update team_members
-  set default_partner_id = (select id from team_members where name = 'George')
+  set default_partner_id = (select id from team_members where name = 'George Deans')
   where name = 'Callum';
 
 -- Greg <-> Noggy
 update team_members
   set default_partner_id = (select id from team_members where name = 'Noggy')
-  where name = 'Greg';
+  where name = 'Greg Stace';
 
 update team_members
-  set default_partner_id = (select id from team_members where name = 'Greg')
+  set default_partner_id = (select id from team_members where name = 'Greg Stace')
   where name = 'Noggy';

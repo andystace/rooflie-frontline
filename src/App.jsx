@@ -25,7 +25,7 @@ function App() {
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-2">
             <span className="text-orange">Rooflie</span>{' '}
-            <span className="text-navy">Forecast</span>
+            <span className="text-navy">Frontline</span>
           </h1>
           <p className="text-sm text-gray-400">Loading...</p>
         </div>
@@ -43,7 +43,7 @@ function App() {
       <header className="bg-navy text-white shadow-md">
         <div className="max-w-[1600px] mx-auto px-4 flex items-center justify-between h-14">
           <h1 className="text-lg font-bold tracking-tight">
-            <span className="text-orange">Rooflie</span> Forecast
+            <span className="text-orange">Rooflie</span> Frontline
           </h1>
           <nav className="flex gap-1">
             {navItems.map(({ to, label, icon: Icon }) => (
