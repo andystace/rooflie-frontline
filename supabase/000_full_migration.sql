@@ -131,33 +131,37 @@ create policy "Allow all access to monthly_targets"
 -- =============================================
 -- SEED TEAM MEMBERS
 -- =============================================
-insert into team_members (name, role, day_rate, colour, display_order) values
-  ('George Deans',              'roofer',        250, '#2563EB', 1),
-  ('Callum',                    'roofer',        250, '#DC2626', 2),
-  ('Greg Stace',                'roofer',        250, '#059669', 3),
-  ('Noggy',                     'roofer',        250, '#D97706', 4),
-  ('Andrew Stace',              'roofer',        250, '#7C3AED', 5),
-  ('Jack',                      'labourer',      150, '#DB2777', 6),
-  ('Josh',                      'labourer',      150, '#0891B2', 7),
-  ('Julian',                    'subcontractor', 0,   '#65A30D', 8),
-  ('Glen Strachy / Gaz Potter', 'subcontractor', 0,   '#EA580C', 9),
-  ('Magnetech',                 'subcontractor', 0,   '#4F46E5', 10),
-  ('SLJ',                       'subcontractor', 0,   '#0D9488', 11),
-  ('Ronnie',                    'subcontractor', 0,   '#CA8A04', 12),
-  ('Ross',                      'subcontractor', 0,   '#9333EA', 13);
 
--- Set partner pairings: George Deans <-> Callum
+-- EMPLOYEES (internal team)
+insert into team_members (name, role, day_rate, colour, display_order) values
+  ('Andrew Stace',       'roofer',        250, '#7C3AED', 1),
+  ('Greg Stace',         'roofer',        250, '#059669', 2),
+  ('George Deans',       'roofer',        250, '#2563EB', 3),
+  ('Ethan Swann',        'roofer',        250, '#DB2777', 4),
+  ('Alex Walker',        'roofer',        250, '#65A30D', 5),
+  ('Kaylan Bullimore',   'roofer',        250, '#4F46E5', 6),
+  ('Callum Riffle',      'roofer',        250, '#DC2626', 7),
+  ('Josh Mee',           'labourer',      150, '#0891B2', 8);
+
+-- SUBCONTRACTORS (external)
+insert into team_members (name, role, day_rate, colour, display_order) values
+  ('Ashley Mason',       'subcontractor', 0,   '#0D9488', 9),
+  ('Ross Sommers',       'subcontractor', 0,   '#9333EA', 10),
+  ('Gary Potter',        'subcontractor', 0,   '#EA580C', 11),
+  ('Shaun Nolan',        'subcontractor', 0,   '#D97706', 12);
+
+-- Set partner pairings: George Deans <-> Callum Riffle
 update team_members
-  set default_partner_id = (select id from team_members where name = 'Callum')
+  set default_partner_id = (select id from team_members where name = 'Callum Riffle')
   where name = 'George Deans';
 update team_members
   set default_partner_id = (select id from team_members where name = 'George Deans')
-  where name = 'Callum';
+  where name = 'Callum Riffle';
 
--- Set partner pairings: Greg Stace <-> Noggy
+-- Set partner pairings: Greg Stace <-> Shaun Nolan
 update team_members
-  set default_partner_id = (select id from team_members where name = 'Noggy')
+  set default_partner_id = (select id from team_members where name = 'Shaun Nolan')
   where name = 'Greg Stace';
 update team_members
   set default_partner_id = (select id from team_members where name = 'Greg Stace')
-  where name = 'Noggy';
+  where name = 'Shaun Nolan';
