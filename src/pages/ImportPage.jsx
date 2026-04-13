@@ -48,8 +48,20 @@ function matchTeamMember(name, members) {
 function matchJob(name, jobs) {
   if (!name) return null
   const n = name.trim().toLowerCase()
+
+  // 1. Try matching by leading job number (e.g. "1078 - Picts lane..." → job_no 1078)
+  const numMatch = name.match(/^\s*(\d{3,5})\b/)
+  if (numMatch) {
+    const jobNo = parseInt(numMatch[1])
+    const found = jobs.find(item => item.job_no === jobNo)
+    if (found) return found
+  }
+
+  // 2. Exact name match
   let found = jobs.find(item => item.job_name?.toLowerCase() === n)
   if (found) return found
+
+  // 3. Partial name match
   found = jobs.find(item => item.job_name?.toLowerCase().includes(n))
   if (found) return found
   found = jobs.find(item => item.job_name && n.includes(item.job_name.toLowerCase()))
@@ -345,7 +357,16 @@ export default function ImportPage() {
       }
     }
 
-    setScheduleRows(entries)
+    // Deduplicate: keep first entry per (date, team_member_id, jobName)
+    const seen = new Set()
+    const deduped = entries.filter(e => {
+      const key = `${e.date}|${e.team_member_id}|${e.jobName}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    setScheduleRows(deduped)
   }
 
   /* ---- Import Jobs ---- */
@@ -411,13 +432,29 @@ export default function ImportPage() {
     setSchedStatus(null)
 
     try {
-      const payloads = valid.map(e => ({
-        team_member_id: e.team_member_id,
-        job_id: e.entry_type === 'job' ? e.job_id : null,
-        entry_type: e.entry_type,
-        date: e.date,
-        hours: e.hours,
-      }))
+      // Fetch existing entries for the date range to detect duplicates
+      const dates = [...new Set(valid.map(e => e.date))].sort()
+      const { data: existing } = await supabase
+        .from('schedule_entries')
+        .select('team_member_id, date, job_id')
+        .gte('date', dates[0])
+        .lte('date', dates[dates.length - 1])
+
+      const existingKeys = new Set(
+        (existing || []).map(e => `${e.team_member_id}|${e.date}|${e.job_id || ''}`)
+      )
+
+      const payloads = valid
+        .map(e => ({
+          team_member_id: e.team_member_id,
+          job_id: e.entry_type === 'job' ? e.job_id : null,
+          entry_type: e.entry_type,
+          date: e.date,
+          hours: e.hours,
+        }))
+        .filter(e => !existingKeys.has(`${e.team_member_id}|${e.date}|${e.job_id || ''}`))
+
+      const skipped = valid.length - payloads.length
 
       let total = 0
       for (let i = 0; i < payloads.length; i += 500) {
@@ -430,7 +467,8 @@ export default function ImportPage() {
         total += (data || []).length
       }
 
-      setSchedStatus({ success: true, message: `${total} schedule entries imported.` })
+      const msg = `${total} schedule entries imported.` + (skipped > 0 ? ` ${skipped} duplicates skipped.` : '')
+      setSchedStatus({ success: true, message: msg })
     } catch (err) {
       setSchedStatus({ success: false, message: err.message })
     }

@@ -29,6 +29,7 @@ export default function SchedulePage() {
   const [editEntry, setEditEntry] = useState(null)      // edit existing
   const [showBulkAssign, setShowBulkAssign] = useState(false)
   const [allJobEntries, setAllJobEntries] = useState([])
+  const [monthEntries, setMonthEntries] = useState([])
 
   // Compute date range based on view
   const dateRange = useMemo(() => {
@@ -47,6 +48,23 @@ export default function SchedulePage() {
   useEffect(() => {
     fetchEntries(dateRange.start, dateRange.end)
   }, [dateRange.start, dateRange.end, fetchEntries])
+
+  // Fetch full month's entries for summary strip (independent of visible week)
+  const monthStart = format(startOfMonth(currentDate), 'yyyy-MM-dd')
+  const monthEnd = format(endOfMonth(currentDate), 'yyyy-MM-dd')
+
+  useEffect(() => {
+    async function loadMonthEntries() {
+      const { data } = await supabase
+        .from('schedule_entries')
+        .select('*, jobs(job_name, job_no, sold_gp, hours_allowed)')
+        .gte('date', monthStart)
+        .lte('date', monthEnd)
+        .order('date')
+      setMonthEntries(data || [])
+    }
+    loadMonthEntries()
+  }, [monthStart, monthEnd, entries]) // re-fetch when visible entries change (user added/moved something)
 
   // Fetch ALL job-type schedule entries for overrun detection
   useEffect(() => {
@@ -133,12 +151,9 @@ export default function SchedulePage() {
     }),
   [entries, jobColourMap, overrunMap])
 
-  // Summary strip calculations
+  // Summary strip calculations — uses full-month entries (not just visible week)
   const monthKey = format(currentDate, 'yyyy-MM')
   const target = getTarget(monthKey)
-  const monthStart = format(startOfMonth(currentDate), 'yyyy-MM-dd')
-  const monthEnd = format(endOfMonth(currentDate), 'yyyy-MM-dd')
-  const monthEntries = entries.filter(e => e.date >= monthStart && e.date <= monthEnd)
   const gpForecast = calcMonthGpForecast(monthEntries, jobs)
   const monthTurnover = calcMonthTurnover(monthEntries, jobs)
   const utilisation = calcUtilisation(monthEntries, activeTeam.length, 22)

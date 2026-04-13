@@ -16,3 +16,6 @@
 | BUG-FRONTLINE-06 | Job import button — show green tick confirmation after successful import | Done |
 | BUG-FRONTLINE-07 | Calendar View "0 entries parsed" — fix date column detection (col A → col B) | Done |
 | BUG-FRONTLINE-08 | Fix "Callum Ruffle" → "Callum Riffle" in seed files + live DB note | Done |
+| BUG-FRONTLINE-11 | Schedule entries importing twice per person — dedup parser + import check | Done |
+| BUG-FRONTLINE-12 | Job matching failing — match on job number prefix (e.g. "1078 - ...") | Done |
+| BUG-FRONTLINE-13 | Month GP Forecast changes with week scroll — fetch full month data separately | Done |
