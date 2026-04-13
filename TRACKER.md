@@ -11,3 +11,5 @@
 | ENH-FRONTLINE-01 | Bulk assign crew to a job on the schedule | Done |
 | IMPORT-F01 | Spreadsheet import tool at /import (jobs + schedule from .xlsx) | Done |
 | CLEAR-F01 | Clear all schedule data button on import page | Done |
+| BUG-FRONTLINE-05 | Fix job import duplicate key error — use upsert with onConflict | Done |
+| IMPORT-F01b | Fix Step 2 (Calendar View) import — sub-header parsing, GP column, skip non-productive | Done |

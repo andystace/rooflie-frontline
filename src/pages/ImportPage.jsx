@@ -4,21 +4,11 @@ import { Upload, CheckCircle, AlertTriangle, Trash2, FileSpreadsheet } from 'luc
 import { supabase } from '../lib/supabase'
 import { format, isWeekend } from 'date-fns'
 
-// Map non-productive job names → schedule entry_type values
-const NON_PRODUCTIVE_MAP = {
-  'office time': 'office',
-  'office': 'office',
-  'unbilled': 'unbilled',
-  'rained off': 'rained_off',
-  'rain off': 'rained_off',
-  'surveys': 'surveys',
-  'survey': 'surveys',
-  'holiday': 'holiday',
-  'holidays': 'holiday',
-  'sick': 'sick',
-  'sickness': 'sick',
-  'training': 'training',
-}
+// Non-productive job names (jobs 1–6) to skip during calendar import
+const SKIP_JOBS = new Set([
+  'office time', 'office', 'unbilled', 'rained off', 'rain off',
+  'surveys', 'survey', 'holiday', 'holidays', 'sick', 'sickness', 'training',
+])
 
 /* ---- Helpers ---- */
 
@@ -53,11 +43,6 @@ function matchTeamMember(name, members) {
   found = members.find(item => item.name.toLowerCase().includes(n))
   if (found) return found
   return null
-}
-
-function matchNonProductive(name) {
-  if (!name) return null
-  return NON_PRODUCTIVE_MAP[name.trim().toLowerCase()] || null
 }
 
 function matchJob(name, jobs) {
@@ -213,14 +198,14 @@ export default function ImportPage() {
     let crewCols = []
     const dateCol = 0
 
-    for (let i = 0; i < Math.min(raw.length, 10); i++) {
+    for (let i = 0; i < Math.min(raw.length, 15); i++) {
       const cells = (raw[i] || []).map(v => String(v || '').toLowerCase().trim())
       const found = []
 
       cells.forEach((cell, ci) => {
-        if (ci === dateCol) return // skip date column
+        if (ci <= dateCol) return // skip date column(s)
         for (const kn of knownNames) {
-          if (cell.includes(kn)) {
+          if (cell === kn || cell.includes(kn)) {
             found.push({ colIdx: ci, rawName: String(raw[i][ci]).trim() })
             break
           }
@@ -236,44 +221,53 @@ export default function ImportPage() {
 
     if (hdrIdx < 0) { setScheduleRows([]); setCrewMapping([]); return }
 
-    // Check if multi-column per crew (sub-headers in the row below)
+    // Check for sub-header row below crew names (Hours, GP/Hour, GP Earned)
     const nextRow = raw[hdrIdx + 1] || []
     const subHdrs = nextRow.map(v => String(v || '').toLowerCase().trim())
     const hasSubHeaders = subHdrs.some(v =>
-      v === 'hours' || v === 'hrs' || v === 'gp/hr' || v === 'gp/hour' || v === 'gp earned'
+      v === 'hours' || v === 'hrs' || v.includes('gp/')  || v === 'gp earned'
     )
 
     let dataStart = hasSubHeaders ? hdrIdx + 2 : hdrIdx + 1
     let crewConfig = []
 
     if (hasSubHeaders) {
-      // Multi-column: each crew has sub-columns (Job, Hours, GP/hr, GP)
+      // Each crew has 3 sub-columns: Hours, GP/Hour, GP Earned
+      // The crew name column itself holds the job name in data rows
       for (let c = 0; c < crewCols.length; c++) {
         const startC = crewCols[c].colIdx
         const endC = c < crewCols.length - 1 ? crewCols[c + 1].colIdx : startC + 5
 
-        let jobCol = startC
+        let jobCol = startC   // job name lives in the crew name column
         let hoursCol = -1
+        let gpEarnedCol = -1
 
         for (let ci = startC; ci < endC; ci++) {
           const sh = subHdrs[ci] || ''
-          if (sh.includes('hour') || sh === 'hrs' || sh === 'h') hoursCol = ci
-          if (sh.includes('job') || sh.includes('name') || sh.includes('desc')) jobCol = ci
+          // Match "hours" / "hrs" but NOT "gp/hour"
+          if ((sh === 'hours' || sh === 'hrs') && !sh.includes('/')) {
+            hoursCol = ci
+          } else if (sh === 'gp earned' || sh === 'gp' || sh === 'earned') {
+            gpEarnedCol = ci
+          }
+          // "gp/hour" and "gp/hr" are noted but not needed for import
         }
 
         crewConfig.push({
           rawName: crewCols[c].rawName,
           jobCol,
           hoursCol,
+          gpEarnedCol,
           member: matchTeamMember(crewCols[c].rawName, members),
         })
       }
     } else {
-      // Single column per crew: cell contains job name (possibly multi-line with hours)
+      // Single column per crew — cell contains job name (possibly multi-line)
       crewConfig = crewCols.map(cc => ({
         rawName: cc.rawName,
         jobCol: cc.colIdx,
         hoursCol: -1,
+        gpEarnedCol: -1,
         member: matchTeamMember(cc.rawName, members),
       }))
     }
@@ -302,38 +296,33 @@ export default function ImportPage() {
         if (!cellText || cellText === '-' || cellText === '0' || cellText.toLowerCase() === 'n/a') continue
 
         let jobName = cellText
-        let hours = 8
 
-        // Multi-line cell: first line = job name, second line might be hours
+        // Multi-line cell: first line = job name
         if (cellText.includes('\n')) {
           const lines = cellText.split('\n').map(l => l.trim()).filter(Boolean)
           jobName = lines[0]
-          for (let li = 1; li < lines.length; li++) {
-            const n = parseFloat(lines[li].replace(/[^0-9.]/g, ''))
-            if (!isNaN(n) && n > 0 && n <= 24) { hours = n; break }
-          }
         }
 
-        // Dedicated hours column overrides
+        if (!jobName) continue
+
+        // Skip non-productive entries (jobs 1-6: holiday, sick, rained off, etc.)
+        if (SKIP_JOBS.has(jobName.toLowerCase())) continue
+
+        // Hours from dedicated column, default 8
+        let hours = 8
         if (cc.hoursCol >= 0) {
           const h = cleanNum(row[cc.hoursCol])
           if (h > 0 && h <= 24) hours = h
         }
 
-        if (!jobName) continue
-
-        // Check if non-productive entry
-        const entryType = matchNonProductive(jobName)
-        let jobId = null
-        let jobMatched = false
-
-        if (!entryType) {
-          const job = matchJob(jobName, jobs)
-          if (job) {
-            jobId = job.id
-            jobMatched = true
-          }
+        // GP earned from dedicated column
+        let gpEarned = 0
+        if (cc.gpEarnedCol >= 0) {
+          gpEarned = cleanNum(row[cc.gpEarnedCol])
         }
+
+        // Match job name to existing jobs table
+        const job = matchJob(jobName, jobs)
 
         entries.push({
           date: dateStr,
@@ -341,10 +330,10 @@ export default function ImportPage() {
           memberName: cc.member.name,
           jobName,
           hours,
-          entry_type: entryType || 'job',
-          job_id: jobId,
-          isNonProductive: !!entryType,
-          jobMatched: !!entryType || jobMatched,
+          gpEarned,
+          entry_type: 'job',
+          job_id: job?.id || null,
+          jobMatched: !!job,
         })
       }
     }
@@ -360,43 +349,44 @@ export default function ImportPage() {
     setJobStatus(null)
 
     try {
-      // Check for existing jobs by job_no to avoid duplicates
-      const { data: existing } = await supabase.from('jobs').select('id, job_no')
-      const existingMap = new Map((existing || []).filter(j => j.job_no).map(j => [j.job_no, j.id]))
-
-      const toInsert = []
-      const toUpdate = []
-
+      // Deduplicate by job_no (keep last occurrence)
+      const byNo = new Map()
+      const noJobNo = []
       for (const row of jobRows) {
-        if (row.job_no && existingMap.has(row.job_no)) {
-          toUpdate.push({ ...row, id: existingMap.get(row.job_no) })
-        } else {
-          toInsert.push(row)
-        }
+        if (row.job_no) byNo.set(row.job_no, row)
+        else noJobNo.push(row)
       }
+      const withJobNo = [...byNo.values()]
 
       let total = 0
+      const now = new Date().toISOString()
 
-      // Update existing jobs
-      for (const job of toUpdate) {
-        const { id, ...payload } = job
-        const { error } = await supabase.from('jobs')
-          .update({ ...payload, updated_at: new Date().toISOString() })
-          .eq('id', id)
+      // Upsert jobs that have a job_no — updates on conflict, inserts otherwise
+      if (withJobNo.length > 0) {
+        const { data, error } = await supabase
+          .from('jobs')
+          .upsert(
+            withJobNo.map(r => ({ ...r, updated_at: now })),
+            { onConflict: 'job_no' }
+          )
+          .select()
         if (error) throw error
-        total++
+        total += (data || []).length
       }
 
-      // Insert new jobs
-      if (toInsert.length > 0) {
-        const { data, error } = await supabase.from('jobs').insert(toInsert).select()
+      // Insert jobs without a job_no (no conflict key to match on)
+      if (noJobNo.length > 0) {
+        const { data, error } = await supabase
+          .from('jobs')
+          .insert(noJobNo.map(r => ({ ...r, updated_at: now })))
+          .select()
         if (error) throw error
-        total += data.length
+        total += (data || []).length
       }
 
-      setJobStatus({ success: true, message: `${total} jobs imported (${toUpdate.length} updated, ${toInsert.length} new).` })
+      setJobStatus({ success: true, message: `${total} jobs imported.` })
 
-      // Refresh reference data and re-parse calendar
+      // Refresh reference data and re-parse calendar with new jobs
       const ref = await loadRef()
       if (wbRef) parseCalendar(wbRef, ref.members, ref.jobs)
     } catch (err) {
@@ -559,13 +549,13 @@ export default function ImportPage() {
       )}
 
       {/* Calendar View — Schedule */}
-      {scheduleRows.length > 0 && (
+      {(scheduleRows.length > 0 || crewMapping.length > 0) && (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-navy">Step 2: Calendar View — Schedule Entries</h3>
               <p className="text-xs text-gray-500">
-                {scheduleRows.length} entries parsed
+                {scheduleRows.length} entries parsed (non-productive rows skipped)
                 {unmatchedJobNames.length > 0 && (
                   <span className="text-amber-600 ml-1">
                     ({unmatchedJobNames.length} unmatched job name{unmatchedJobNames.length !== 1 ? 's' : ''})
@@ -573,14 +563,16 @@ export default function ImportPage() {
                 )}
               </p>
             </div>
-            <button
-              onClick={importSchedule}
-              disabled={importingSched}
-              className="flex items-center gap-1.5 bg-orange text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-dark disabled:opacity-50"
-            >
-              <Upload size={14} />
-              {importingSched ? 'Importing...' : `Import ${scheduleRows.length} Entries`}
-            </button>
+            {scheduleRows.length > 0 && (
+              <button
+                onClick={importSchedule}
+                disabled={importingSched}
+                className="flex items-center gap-1.5 bg-orange text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-dark disabled:opacity-50"
+              >
+                <Upload size={14} />
+                {importingSched ? 'Importing...' : `Import ${scheduleRows.length} Entries`}
+              </button>
+            )}
           </div>
 
           <StatusBanner status={schedStatus} />
@@ -619,47 +611,47 @@ export default function ImportPage() {
             </div>
           )}
 
-          <div className="max-h-[400px] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-2 font-semibold text-navy">Date</th>
-                  <th className="text-left px-4 py-2 font-semibold text-navy">Crew</th>
-                  <th className="text-left px-4 py-2 font-semibold text-navy">Job / Type</th>
-                  <th className="text-right px-4 py-2 font-semibold text-navy">Hours</th>
-                  <th className="text-center px-4 py-2 font-semibold text-navy">Match</th>
-                </tr>
-              </thead>
-              <tbody>
-                {scheduleRows.slice(0, 200).map((r, i) => (
-                  <tr key={i} className="border-b border-gray-100">
-                    <td className="px-4 py-1.5 text-gray-600 tabular-nums">{r.date}</td>
-                    <td className="px-4 py-1.5">{r.memberName}</td>
-                    <td className="px-4 py-1.5 truncate max-w-[250px]">
-                      {r.isNonProductive ? (
-                        <span className="text-purple-600 italic">{r.entry_type.replace('_', ' ')}</span>
-                      ) : (
-                        r.jobName
-                      )}
-                    </td>
-                    <td className="px-4 py-1.5 text-right tabular-nums">{r.hours}</td>
-                    <td className="px-4 py-1.5 text-center">
-                      {r.jobMatched ? (
-                        <CheckCircle size={14} className="inline text-green-500" />
-                      ) : (
-                        <AlertTriangle size={14} className="inline text-amber-500" />
-                      )}
-                    </td>
+          {scheduleRows.length > 0 && (
+            <div className="max-h-[400px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white border-b border-gray-200">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-semibold text-navy">Date</th>
+                    <th className="text-left px-4 py-2 font-semibold text-navy">Crew Member</th>
+                    <th className="text-left px-4 py-2 font-semibold text-navy">Job</th>
+                    <th className="text-right px-4 py-2 font-semibold text-navy">Hours</th>
+                    <th className="text-right px-4 py-2 font-semibold text-navy">GP</th>
+                    <th className="text-center px-4 py-2 font-semibold text-navy">Match</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {scheduleRows.length > 200 && (
-              <div className="px-4 py-2 text-xs text-gray-400 text-center">
-                Showing first 200 of {scheduleRows.length} entries
-              </div>
-            )}
-          </div>
+                </thead>
+                <tbody>
+                  {scheduleRows.slice(0, 200).map((r, i) => (
+                    <tr key={i} className="border-b border-gray-100">
+                      <td className="px-4 py-1.5 text-gray-600 tabular-nums">{r.date}</td>
+                      <td className="px-4 py-1.5">{r.memberName}</td>
+                      <td className="px-4 py-1.5 truncate max-w-[250px]">{r.jobName}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums">{r.hours}</td>
+                      <td className="px-4 py-1.5 text-right tabular-nums">
+                        {r.gpEarned > 0 ? `\u00A3${r.gpEarned.toLocaleString()}` : '\u2014'}
+                      </td>
+                      <td className="px-4 py-1.5 text-center">
+                        {r.jobMatched ? (
+                          <CheckCircle size={14} className="inline text-green-500" />
+                        ) : (
+                          <AlertTriangle size={14} className="inline text-amber-500" />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {scheduleRows.length > 200 && (
+                <div className="px-4 py-2 text-xs text-gray-400 text-center">
+                  Showing first 200 of {scheduleRows.length} entries
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
