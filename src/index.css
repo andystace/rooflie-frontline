@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #1B3A5C;
+  --color-navy-light: #2A5580;
+  --color-navy-dark: #122840;
+  --color-orange: #E8731A;
+  --color-orange-light: #F5933D;
+  --color-orange-dark: #C45F12;
+
+  /* Non-productive entry colours */
+  --color-holiday: #9B59B6;
+  --color-sick: #E74C3C;
+  --color-rained-off: #95A5A6;
+  --color-office: #3498DB;
+  --color-surveys: #1ABC9C;
+  --color-unbilled: #7F8C8D;
+  --color-training: #27AE60;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f8fafc;
+  color: #1e293b;
+}
+
+/* FullCalendar overrides */
+.fc {
+  --fc-border-color: #e2e8f0;
+  --fc-today-bg-color: rgba(232, 115, 26, 0.05);
+  --fc-event-border-color: transparent;
+}
+
+.fc .fc-scrollgrid {
+  border: none;
+}
+
+.fc .fc-col-header-cell {
+  padding: 8px 0;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #1B3A5C;
+}
+
+/* Slot label (column header) styling */
+.fc .fc-timeline-slot-label {
+  vertical-align: middle;
+  text-align: center;
+}
+
+/* Resource group header (Team / Subcontractors) */
+.fc .fc-resource-group {
+  background-color: #f1f5f9;
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: #1B3A5C;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 12px;
+}
+
+/* Events — rounded pills with slight gap for stacking */
+.fc .fc-timeline-event {
+  border-radius: 4px;
+  margin: 1px 2px;
+  cursor: pointer;
+}
+
+.fc .fc-timeline-event .fc-event-main {
+  padding: 0;
+}
+
+/* Weekend columns shading */
+.fc .fc-day-sat,
+.fc .fc-day-sun {
+  background-color: #f8fafc;
+}
+
+/* Today column highlight */
+.fc .fc-day-today {
+  background-color: rgba(232, 115, 26, 0.06);
+}
+
+/* Touch support — prevent browser gestures from blocking FullCalendar interactions */
+.fc .fc-timeline-body {
+  touch-action: pan-y;
+}
+
+.fc .fc-timeline-event {
+  touch-action: none;
+}
