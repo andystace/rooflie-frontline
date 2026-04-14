@@ -334,31 +334,48 @@ export default function ImportPage() {
       const sec = sections[si]
       const { hdrIdx, crewCols } = sec
 
-      // Check for sub-header row — search up to 3 rows below the header
+      // Check for sub-header row — search up to 10 rows below the header
       let subHdrRow = null
       let subHdrIdx = -1
       const firstCrewCol = crewCols[0].colIdx
+      const lastCrewCol = crewCols[crewCols.length - 1].colIdx
+      const nextSecHdr = si < sections.length - 1 ? sections[si + 1].hdrIdx : raw.length
 
-      console.log(`[Import] Section ${si + 1}: searching for sub-headers below header row ${hdrIdx} (first crew col=${firstCrewCol})`)
+      console.log(`[Import] Section ${si + 1}: searching for sub-headers below header row ${hdrIdx} (crew cols ${firstCrewCol}–${lastCrewCol}, next section at row ${nextSecHdr})`)
 
-      for (let offset = 1; offset <= 3; offset++) {
+      // Dump raw cell values for rows near this section header
+      const dumpEnd = Math.min(hdrIdx + 13, raw.length)
+      for (let di = hdrIdx; di < dumpEnd; di++) {
+        const dumpRow = raw[di] || []
+        const vals = []
+        for (let ci = 0; ci < Math.min(dumpRow.length, lastCrewCol + 6); ci++) {
+          const v = dumpRow[ci]
+          if (v != null && String(v).trim()) vals.push(`[${ci}]="${String(v).trim().substring(0, 30)}"`)
+        }
+        console.log(`[Import]   Dump row ${di}: ${vals.length > 0 ? vals.join(' ') : '(empty)'}`)
+      }
+
+      for (let offset = 1; offset <= 10; offset++) {
         const checkIdx = hdrIdx + offset
         if (checkIdx >= raw.length) break
-        // Skip if this row is itself another section header
-        if (sections.some(s => s !== sec && s.hdrIdx === checkIdx)) continue
+        // Stop at next section's header — sub-headers beyond that belong to it
+        if (checkIdx >= nextSecHdr) {
+          console.log(`[Import]   Row ${checkIdx}: reached next section header — stopping search`)
+          break
+        }
 
         const checkRow = (raw[checkIdx] || []).map(v => String(v || '').toLowerCase().trim())
 
-        // Log cells near crew columns for diagnostics
+        // Log cells near crew columns
         const nearby = []
-        for (let ci = firstCrewCol; ci < firstCrewCol + 8 && ci < checkRow.length; ci++) {
+        for (let ci = firstCrewCol; ci < lastCrewCol + 6 && ci < checkRow.length; ci++) {
           if (checkRow[ci]) nearby.push(`[${ci}]="${checkRow[ci]}"`)
         }
-        console.log(`[Import]   Row ${checkIdx} cells: ${nearby.length > 0 ? nearby.join(' ') : '(empty near crew cols)'}`)
+        console.log(`[Import]   Scan row ${checkIdx}: ${nearby.length > 0 ? nearby.join(' ') : '(empty near crew cols)'}`)
 
-        // Check for sub-header keywords near ANY crew column (not just whole row)
+        // Check for sub-header keywords near ALL crew columns (not just first 3)
         let foundSubHdr = false
-        for (const cc of crewCols.slice(0, 3)) { // check first 3 crew blocks
+        for (const cc of crewCols) {
           for (let ci = cc.colIdx; ci <= cc.colIdx + 4 && ci < checkRow.length; ci++) {
             const v = checkRow[ci] || ''
             if (v && v.length < 15 && (v.includes('hour') || v === 'hrs' || v.includes('gp'))) {
@@ -367,6 +384,14 @@ export default function ImportPage() {
             }
           }
           if (foundSubHdr) break
+        }
+
+        // Fallback: check entire row for sub-header keywords
+        if (!foundSubHdr) {
+          foundSubHdr = checkRow.some(v =>
+            v && v.length > 0 && v.length < 15 &&
+            (v === 'hours' || v === 'hrs' || v === 'hour' || v.includes('gp'))
+          )
         }
 
         if (foundSubHdr) {

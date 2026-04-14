@@ -33,3 +33,4 @@
 | BUG-FRONTLINE-19 | Glen Strachy Gaz Potter unmatched — normalized name matching strips special chars | Done |
 | IMPORT-F01g | Section 2 sub-header detection — targeted crew-column search, expanded range, detailed logging | Done |
 | ENH-FRONTLINE-04 | Full-width layout on large screens — removed max-width constraints from all pages and header | Done |
+| IMPORT-F01h | Section 2 sub-header scan — search 10 rows, all crew cols, raw dump logging, next-section guard | Done |
