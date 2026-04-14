@@ -70,14 +70,16 @@ function matchTeamMember(name, members) {
 
 function matchJob(name, jobs) {
   if (!name) return null
-  const n = name.trim()
+  // Strip invisible characters (zero-width space, BOM) that break regex anchoring
+  const n = name.replace(/[\u200B\uFEFF\u00A0]/g, ' ').trim()
   const nLower = n.toLowerCase()
 
   // 1. Try matching by leading job number (e.g. "1078 - Picts lane..." → job_no 1078)
   const numMatch = n.match(/^\s*(\d{3,5})\b/)
   if (numMatch) {
     const jobNo = parseInt(numMatch[1])
-    const found = jobs.find(item => item.job_no === jobNo)
+    // Use Number() coercion on both sides to handle string/number mismatches
+    const found = jobs.find(item => item.job_no != null && Number(item.job_no) === jobNo)
     if (found) return found
   }
 
@@ -254,12 +256,24 @@ export default function ImportPage() {
       return names
     })
 
+    console.log('[Import] Team members:', members.length,
+      '| With nicknames:', members.filter(m => m.nickname).map(m => `${m.name} → "${m.nickname}"`))
+    console.log('[Import] Known names for header scan:', knownNames)
+
     // Find the date column — look for a header cell that says "date" (not "day + date")
     let dateCol = 1 // default to column B
     for (let i = 0; i < Math.min(raw.length, 10); i++) {
       const cells = (raw[i] || []).map(v => String(v || '').toLowerCase().trim())
       const dci = cells.findIndex(c => c === 'date')
       if (dci >= 0) { dateCol = dci; break }
+    }
+
+    // Helper: check if cell contains known name as a whole word (not substring of longer word)
+    function cellMatchesKnownName(cell, kn) {
+      if (cell === kn) return true
+      if (cell.length > 30) return false // skip long cells — not a crew name header
+      const escaped = kn.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      return new RegExp(`\\b${escaped}\\b`).test(cell)
     }
 
     // Find header row with crew names
@@ -271,9 +285,9 @@ export default function ImportPage() {
       const found = []
 
       cells.forEach((cell, ci) => {
-        if (ci <= dateCol) return // skip date column(s)
+        if (ci <= dateCol || !cell) return // skip date column(s) and empty cells
         for (const kn of knownNames) {
-          if (cell === kn || cell.includes(kn)) {
+          if (cellMatchesKnownName(cell, kn)) {
             found.push({ colIdx: ci, rawName: String(raw[i][ci]).trim() })
             break
           }
@@ -285,6 +299,22 @@ export default function ImportPage() {
         crewCols = found
         break
       }
+    }
+
+    // Debug: log every cell in the detected header row
+    if (hdrIdx >= 0) {
+      const headerRow = raw[hdrIdx] || []
+      console.log(`[Import] Header row ${hdrIdx} — all cells:`)
+      headerRow.forEach((cell, ci) => {
+        const val = String(cell ?? '').trim()
+        if (!val) return
+        const lower = val.toLowerCase()
+        const matchedName = knownNames.find(kn => cellMatchesKnownName(lower, kn))
+        const inCrew = crewCols.some(c => c.colIdx === ci)
+        console.log(`  Col ${ci}: "${val}" → ${matchedName ? `matched "${matchedName}"` : 'no match'}${inCrew ? ' ✓ CREW' : ''}`)
+      })
+    } else {
+      console.log('[Import] No header row found in first 15 rows')
     }
 
     if (hdrIdx < 0) { setScheduleRows([]); setCrewMapping([]); return }
@@ -308,6 +338,8 @@ export default function ImportPage() {
         if (gap >= 3 && gap <= 6) blockWidth = gap
       }
 
+      console.log(`[Import] Sub-headers detected, blockWidth=${blockWidth}`)
+
       for (let c = 0; c < crewCols.length; c++) {
         const startC = crewCols[c].colIdx
 
@@ -329,6 +361,24 @@ export default function ImportPage() {
         member: matchTeamMember(cc.rawName, members),
       }))
     }
+
+    // Dedup: prevent same team member being assigned to multiple columns
+    const seenMemberIds = new Set()
+    crewConfig = crewConfig.filter(cc => {
+      if (!cc.member) return true // keep unmatched for display
+      if (seenMemberIds.has(cc.member.id)) {
+        console.log(`[Import] Removing duplicate crew column for ${cc.member.name} at col ${cc.jobCol}`)
+        return false
+      }
+      seenMemberIds.add(cc.member.id)
+      return true
+    })
+
+    // Log final crew config
+    console.log('[Import] Final crew config:')
+    crewConfig.forEach(cc => {
+      console.log(`  "${cc.rawName}" col ${cc.jobCol} → ${cc.member?.name || 'UNMATCHED'} (hours=${cc.hoursCol}, gpEarned=${cc.gpEarnedCol})`)
+    })
 
     setCrewMapping(crewConfig.map(c => ({ rawName: c.rawName, member: c.member })))
 

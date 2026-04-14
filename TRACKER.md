@@ -25,3 +25,6 @@
 | BUG-FRONTLINE-16 | Skip blank/numeric-only job name cells — prevent false "Unassigned" entries | Done |
 | BUG-FRONTLINE-17 | Fix column offset bug — deterministic 4-col block width from crew header spacing | Done |
 | BUG-FRONTLINE-18 | Ross Sommers GP fix — gpEarnedCol now correctly assigned via fixed block offsets | Done |
+| IMPORT-F01c | Patch column matching — debug logging, word-boundary header detection, crew dedup | Done |
+| IMPORT-F01d | George double entry — word-boundary matching prevents false crew column detection | Done |
+| BUG-FRONTLINE-12b | Job 1109 Milestone windmill — Number() coercion for job_no comparison, strip invisible chars | Done |
