@@ -44,6 +44,7 @@ create table if not exists variations (
 create table if not exists team_members (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  nickname text,
   role text not null default 'roofer'
     check (role in ('roofer', 'labourer', 'subcontractor', 'apprentice')),
   default_partner_id uuid references team_members(id),
@@ -63,6 +64,7 @@ create table if not exists schedule_entries (
     check (entry_type in ('job', 'holiday', 'sick', 'rained_off', 'office', 'surveys', 'unbilled', 'training')),
   date date not null,
   hours numeric not null default 8,
+  gp_earned numeric not null default 0,
   notes text,
   created_at timestamptz not null default now()
 );

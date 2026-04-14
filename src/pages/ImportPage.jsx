@@ -36,36 +36,70 @@ function cleanNum(val) {
 function matchTeamMember(name, members) {
   const n = name.trim().toLowerCase()
   if (!n) return null
+  // Exact name match
   let found = members.find(item => item.name.toLowerCase() === n)
   if (found) return found
+  // First name match
   found = members.find(item => item.name.toLowerCase().split(' ')[0] === n)
   if (found) return found
+  // Nickname match (exact)
+  found = members.find(item => item.nickname && item.nickname.toLowerCase() === n)
+  if (found) return found
+  // Partial name match
   found = members.find(item => item.name.toLowerCase().includes(n))
+  if (found) return found
+  // Partial nickname match
+  found = members.find(item => item.nickname && item.nickname.toLowerCase().includes(n))
   if (found) return found
   return null
 }
 
 function matchJob(name, jobs) {
   if (!name) return null
-  const n = name.trim().toLowerCase()
+  const n = name.trim()
+  const nLower = n.toLowerCase()
 
   // 1. Try matching by leading job number (e.g. "1078 - Picts lane..." → job_no 1078)
-  const numMatch = name.match(/^\s*(\d{3,5})\b/)
+  const numMatch = n.match(/^\s*(\d{3,5})\b/)
   if (numMatch) {
     const jobNo = parseInt(numMatch[1])
     const found = jobs.find(item => item.job_no === jobNo)
     if (found) return found
   }
 
-  // 2. Exact name match
-  let found = jobs.find(item => item.job_name?.toLowerCase() === n)
+  // 2. Extract name part (strip leading number + separator if present)
+  let namePart = nLower
+  if (numMatch) {
+    namePart = n.slice(numMatch[0].length).replace(/^[\s\-–—:]+/, '').trim().toLowerCase()
+  }
+
+  // 3. Exact name match on name part
+  let found = jobs.find(item => item.job_name?.toLowerCase() === namePart)
   if (found) return found
 
-  // 3. Partial name match
-  found = jobs.find(item => item.job_name?.toLowerCase().includes(n))
+  // 4. Partial name match (job name contains name part or vice versa)
+  found = jobs.find(item => item.job_name?.toLowerCase().includes(namePart))
   if (found) return found
-  found = jobs.find(item => item.job_name && n.includes(item.job_name.toLowerCase()))
+  found = jobs.find(item => item.job_name && namePart.includes(item.job_name.toLowerCase()))
   if (found) return found
+
+  // 5. Keyword matching — extract significant words, match if 2+ hit a job name
+  const SKIP_WORDS = new Set(['tbc', 'the', 'and', 'for', 'job', 'new', 'old', 'est', 'price', 'guess'])
+  const keywords = namePart.split(/[\s\-–—,_]+/).filter(w => w.length >= 3 && !SKIP_WORDS.has(w))
+  if (keywords.length >= 2) {
+    let bestMatch = null
+    let bestCount = 0
+    for (const job of jobs) {
+      const jn = job.job_name?.toLowerCase() || ''
+      const matchCount = keywords.filter(kw => jn.includes(kw)).length
+      if (matchCount >= 2 && matchCount > bestCount) {
+        bestMatch = job
+        bestCount = matchCount
+      }
+    }
+    if (bestMatch) return bestMatch
+  }
+
   return null
 }
 
@@ -199,11 +233,12 @@ export default function ImportPage() {
 
     const raw = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null })
 
-    // Known first names to scan for in headers
-    const knownNames = [
-      'george', 'callum', 'greg', 'alex', 'ross', 'patch',
-      'ethan', 'kaylan', 'josh', 'andrew', 'ashley', 'gary', 'shaun',
-    ]
+    // Build known names dynamically from team members (first names + nicknames)
+    const knownNames = members.flatMap(m => {
+      const names = [m.name.toLowerCase().split(' ')[0]]
+      if (m.nickname) names.push(m.nickname.toLowerCase())
+      return names
+    })
 
     // Find the date column — look for a header cell that says "date" (not "day + date")
     let dateCol = 1 // default to column B
@@ -451,6 +486,7 @@ export default function ImportPage() {
           entry_type: e.entry_type,
           date: e.date,
           hours: e.hours,
+          gp_earned: e.gpEarned || 0,
         }))
         .filter(e => !existingKeys.has(`${e.team_member_id}|${e.date}|${e.job_id || ''}`))
 

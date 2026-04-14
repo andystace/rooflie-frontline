@@ -189,6 +189,7 @@ function TeamSection() {
     setEditingId(member.id)
     setEditForm({
       name: member.name,
+      nickname: member.nickname || '',
       role: member.role,
       day_rate: member.day_rate,
       colour: member.colour || '#6B7280',
@@ -199,6 +200,7 @@ function TeamSection() {
     try {
       await updateMember(id, {
         name: editForm.name,
+        nickname: editForm.nickname || null,
         role: editForm.role,
         day_rate: Number(editForm.day_rate) || 0,
         colour: editForm.colour,
@@ -319,13 +321,19 @@ function TeamSection() {
           if (isEditing) {
             return (
               <div key={member.id} className="px-4 py-3 bg-blue-50/50">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   <input
                     value={editForm.name}
                     onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                     className="border border-gray-300 rounded px-2 py-1.5 text-sm"
                     placeholder="Name"
                     autoFocus
+                  />
+                  <input
+                    value={editForm.nickname}
+                    onChange={e => setEditForm(f => ({ ...f, nickname: e.target.value }))}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                    placeholder="Nickname (optional)"
                   />
                   <select
                     value={editForm.role}
@@ -373,7 +381,10 @@ function TeamSection() {
                 style={{ backgroundColor: member.colour || '#6B7280' }}
               />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{member.name}</div>
+                <div className="text-sm font-medium truncate">
+                  {member.name}
+                  {member.nickname && <span className="text-gray-400 font-normal ml-1">"{member.nickname}"</span>}
+                </div>
                 <div className="text-xs text-gray-500 capitalize">
                   {member.role} {member.day_rate > 0 ? `\u2022 \u00A3${member.day_rate}/day` : ''}
                 </div>

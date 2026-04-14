@@ -64,8 +64,14 @@ export function calcJobMetrics(job, scheduleEntries = [], variations = []) {
 
 /**
  * Calculate GP earned for a single schedule entry.
+ * Uses stored gp_earned from spreadsheet import when available,
+ * otherwise calculates from job sold_gp / hours_allowed.
  */
 export function calcEntryGp(entry, job) {
+  // Use stored GP from spreadsheet import if available
+  const storedGp = Number(entry.gp_earned || 0)
+  if (storedGp > 0) return storedGp
+
   if (!job || entry.entry_type !== 'job') return 0
   const totalGp = Number(job.sold_gp || 0)
   const totalHours = Number(job.hours_allowed || 0)
@@ -80,7 +86,14 @@ export function calcEntryGp(entry, job) {
 export function calcMonthGpForecast(entries, jobs) {
   let total = 0
   for (const entry of entries) {
-    if (entry.entry_type !== 'job' || !entry.job_id) continue
+    if (entry.entry_type !== 'job') continue
+    // Use stored gp_earned even if job_id is null
+    const storedGp = Number(entry.gp_earned || 0)
+    if (storedGp > 0) {
+      total += storedGp
+      continue
+    }
+    if (!entry.job_id) continue
     const job = jobs.find(j => j.id === entry.job_id)
     if (!job) continue
     total += calcEntryGp(entry, job)

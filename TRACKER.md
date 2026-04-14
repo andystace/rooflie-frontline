@@ -19,3 +19,5 @@
 | BUG-FRONTLINE-11 | Schedule entries importing twice per person — dedup parser + import check | Done |
 | BUG-FRONTLINE-12 | Job matching failing — match on job number prefix (e.g. "1078 - ...") | Done |
 | BUG-FRONTLINE-13 | Month GP Forecast changes with week scroll — fetch full month data separately | Done |
+| ENH-FRONTLINE-02 | Nickname field for team members — edit form, import matching on name + nickname | Done |
+| IMPORT-F01b-GP | Fix GP storage, job matching (keyword fallback, name-part matching), store gp_earned from spreadsheet | Done |

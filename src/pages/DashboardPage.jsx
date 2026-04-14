@@ -49,8 +49,14 @@ export default function DashboardPage() {
       const memberEntries = monthEntries.filter(e => e.team_member_id === member.id && e.entry_type === 'job')
       let gp = 0
       for (const e of memberEntries) {
-        const job = jobs.find(j => j.id === e.job_id)
-        if (job) gp += calcEntryGp(e, job)
+        // Use stored gp_earned first, then calculate from job
+        const storedGp = Number(e.gp_earned || 0)
+        if (storedGp > 0) {
+          gp += storedGp
+        } else {
+          const job = jobs.find(j => j.id === e.job_id)
+          if (job) gp += calcEntryGp(e, job)
+        }
       }
       const totalHours = memberEntries.reduce((s, e) => s + Number(e.hours || 0), 0)
       return { member, gp, totalHours }
@@ -68,8 +74,13 @@ export default function DashboardPage() {
       const weekEntries = monthEntries.filter(e => e.date >= ws && e.date <= we && e.entry_type === 'job')
       let gp = 0
       for (const e of weekEntries) {
-        const job = jobs.find(j => j.id === e.job_id)
-        if (job) gp += calcEntryGp(e, job)
+        const storedGp = Number(e.gp_earned || 0)
+        if (storedGp > 0) {
+          gp += storedGp
+        } else {
+          const job = jobs.find(j => j.id === e.job_id)
+          if (job) gp += calcEntryGp(e, job)
+        }
       }
       return { weekStart: format(weekStart, 'd MMM'), gp }
     })
