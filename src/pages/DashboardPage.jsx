@@ -132,7 +132,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-4 max-w-[1600px] mx-auto">
+    <div className="p-4">
       <div className="flex items-center gap-2 mb-4">
         <BarChart3 size={24} className="text-navy" />
         <h2 className="text-xl font-bold text-navy">GP & Capacity Dashboard</h2>

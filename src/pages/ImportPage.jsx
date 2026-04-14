@@ -334,21 +334,53 @@ export default function ImportPage() {
       const sec = sections[si]
       const { hdrIdx, crewCols } = sec
 
-      // Check for sub-header row — search up to 2 rows below the header
+      // Check for sub-header row — search up to 3 rows below the header
       let subHdrRow = null
       let subHdrIdx = -1
-      for (let offset = 1; offset <= 2; offset++) {
+      const firstCrewCol = crewCols[0].colIdx
+
+      console.log(`[Import] Section ${si + 1}: searching for sub-headers below header row ${hdrIdx} (first crew col=${firstCrewCol})`)
+
+      for (let offset = 1; offset <= 3; offset++) {
         const checkIdx = hdrIdx + offset
         if (checkIdx >= raw.length) break
+        // Skip if this row is itself another section header
+        if (sections.some(s => s !== sec && s.hdrIdx === checkIdx)) continue
+
         const checkRow = (raw[checkIdx] || []).map(v => String(v || '').toLowerCase().trim())
-        if (checkRow.some(v =>
-          v === 'hours' || v === 'hrs' || v.includes('gp/') || v === 'gp earned'
-        )) {
+
+        // Log cells near crew columns for diagnostics
+        const nearby = []
+        for (let ci = firstCrewCol; ci < firstCrewCol + 8 && ci < checkRow.length; ci++) {
+          if (checkRow[ci]) nearby.push(`[${ci}]="${checkRow[ci]}"`)
+        }
+        console.log(`[Import]   Row ${checkIdx} cells: ${nearby.length > 0 ? nearby.join(' ') : '(empty near crew cols)'}`)
+
+        // Check for sub-header keywords near ANY crew column (not just whole row)
+        let foundSubHdr = false
+        for (const cc of crewCols.slice(0, 3)) { // check first 3 crew blocks
+          for (let ci = cc.colIdx; ci <= cc.colIdx + 4 && ci < checkRow.length; ci++) {
+            const v = checkRow[ci] || ''
+            if (v && v.length < 15 && (v.includes('hour') || v === 'hrs' || v.includes('gp'))) {
+              foundSubHdr = true
+              break
+            }
+          }
+          if (foundSubHdr) break
+        }
+
+        if (foundSubHdr) {
           subHdrRow = checkRow
           subHdrIdx = checkIdx
+          console.log(`[Import]   → Sub-headers found at row ${checkIdx}`)
           break
         }
       }
+
+      if (!subHdrRow) {
+        console.log(`[Import]   → No sub-headers found for section ${si + 1} — hours/GP will be unavailable`)
+      }
+
       const hasSubHeaders = subHdrRow !== null
 
       sec.dataStart = hasSubHeaders ? subHdrIdx + 1 : hdrIdx + 1
@@ -375,9 +407,11 @@ export default function ImportPage() {
           let gpEarnedCol = startC + 3 // default
           for (let ci = startC + 1; ci < endC; ci++) {
             const sh = subHdrRow[ci] || ''
-            if (sh === 'hours' || sh === 'hrs') hoursCol = ci
+            if (sh === 'hours' || sh === 'hrs' || sh.includes('hour')) hoursCol = ci
             if (sh.includes('gp')) gpEarnedCol = ci // rightmost gp column = GP Earned
           }
+
+          console.log(`[Import]   ${crewCols[c].rawName}: jobCol=${startC}, hoursCol=${hoursCol}, gpEarnedCol=${gpEarnedCol} (scanned cols ${startC + 1}–${endC - 1})`)
 
           crewConfig.push({
             rawName: crewCols[c].rawName,
@@ -668,7 +702,7 @@ export default function ImportPage() {
   /* ---- Render ---- */
 
   return (
-    <div className="p-4 max-w-[1200px] mx-auto space-y-6">
+    <div className="p-4 space-y-6">
       <div className="flex items-center gap-2">
         <FileSpreadsheet size={24} className="text-navy" />
         <h2 className="text-xl font-bold text-navy">Import Spreadsheet</h2>

@@ -31,3 +31,5 @@
 | IMPORT-F01e | Multi-section crew parsing — scan all rows for crew headers, import from all sections | Done |
 | IMPORT-F01f | Section 2 hours/GP offset fix — scan sub-header row for column positions, date guard on header detection | Done |
 | BUG-FRONTLINE-19 | Glen Strachy Gaz Potter unmatched — normalized name matching strips special chars | Done |
+| IMPORT-F01g | Section 2 sub-header detection — targeted crew-column search, expanded range, detailed logging | Done |
+| ENH-FRONTLINE-04 | Full-width layout on large screens — removed max-width constraints from all pages and header | Done |

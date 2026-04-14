@@ -259,7 +259,7 @@ export default function SchedulePage() {
   }, [createEntries])
 
   return (
-    <div className="p-4 max-w-[1600px] mx-auto space-y-3">
+    <div className="p-4 space-y-3">
       <SummaryStrip
         gpForecast={gpForecast}
         gpTarget={target?.gp_target}

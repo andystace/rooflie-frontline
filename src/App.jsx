@@ -43,7 +43,7 @@ function App() {
     <div className="min-h-screen flex flex-col">
       {/* Top nav bar */}
       <header className="bg-navy text-white shadow-md">
-        <div className="max-w-[1600px] mx-auto px-4 flex items-center justify-between h-14">
+        <div className="px-4 flex items-center justify-between h-14">
           <h1 className="text-lg font-bold tracking-tight">
             <span className="text-orange">Rooflie</span> Frontline
           </h1>

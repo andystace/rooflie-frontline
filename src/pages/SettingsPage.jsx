@@ -9,7 +9,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('targets')
 
   return (
-    <div className="p-4 max-w-[1200px] mx-auto">
+    <div className="p-4">
       <div className="flex items-center gap-2 mb-4">
         <Settings size={24} className="text-navy" />
         <h2 className="text-xl font-bold text-navy">Settings</h2>
