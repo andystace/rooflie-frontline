@@ -34,3 +34,4 @@
 | IMPORT-F01g | Section 2 sub-header detection — targeted crew-column search, expanded range, detailed logging | Done |
 | ENH-FRONTLINE-04 | Full-width layout on large screens — removed max-width constraints from all pages and header | Done |
 | IMPORT-F01h | Section 2 sub-header scan — search 10 rows, all crew cols, raw dump logging, next-section guard | Done |
+| IMPORT-F01j | Root cause fix — min-gap filter rejects summary rows, block-width-limited column scan, GP/Hour exclusion from hours match. Verified: £71,488.64 GP total | Done |

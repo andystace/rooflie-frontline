@@ -303,7 +303,18 @@ export default function ImportPage() {
       })
 
       if (found.length >= 2) {
-        sections.push({ hdrIdx: i, crewCols: found })
+        // Validate: real crew headers have regular block spacing (gap >= 3)
+        // Reject rows where names appear in adjacent columns (summary/total rows)
+        const gaps = []
+        for (let g = 1; g < found.length; g++) {
+          gaps.push(found[g].colIdx - found[g - 1].colIdx)
+        }
+        const minGap = Math.min(...gaps)
+        if (minGap >= 3) {
+          sections.push({ hdrIdx: i, crewCols: found })
+        } else {
+          console.log(`[Import] Row ${i}: ${found.length} names but min col gap=${minGap} — skipping (summary row)`)
+        }
       }
     }
 
@@ -427,16 +438,18 @@ export default function ImportPage() {
           const startC = crewCols[c].colIdx
           const endC = c < crewCols.length - 1 ? crewCols[c + 1].colIdx : startC + blockWidth
 
-          // Scan sub-header row for actual column positions within this crew's block
+          // Scan sub-header row within this crew's own block (not all the way to next crew)
+          // Limits scan to blockWidth to prevent picking up sub-headers from other blocks
+          const scanEnd = Math.min(startC + blockWidth, endC)
           let hoursCol = startC + 1   // default
           let gpEarnedCol = startC + 3 // default
-          for (let ci = startC + 1; ci < endC; ci++) {
+          for (let ci = startC + 1; ci < scanEnd; ci++) {
             const sh = subHdrRow[ci] || ''
-            if (sh === 'hours' || sh === 'hrs' || sh.includes('hour')) hoursCol = ci
+            if ((sh === 'hours' || sh === 'hrs' || sh.includes('hour')) && !sh.includes('gp')) hoursCol = ci
             if (sh.includes('gp')) gpEarnedCol = ci // rightmost gp column = GP Earned
           }
 
-          console.log(`[Import]   ${crewCols[c].rawName}: jobCol=${startC}, hoursCol=${hoursCol}, gpEarnedCol=${gpEarnedCol} (scanned cols ${startC + 1}–${endC - 1})`)
+          console.log(`[Import]   ${crewCols[c].rawName}: jobCol=${startC}, hoursCol=${hoursCol}, gpEarnedCol=${gpEarnedCol} (scanned cols ${startC + 1}–${scanEnd - 1})`)
 
           crewConfig.push({
             rawName: crewCols[c].rawName,
