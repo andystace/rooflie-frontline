@@ -59,6 +59,11 @@ function matchTeamMember(name, members) {
   // Nickname match (exact)
   found = members.find(item => item.nickname && item.nickname.toLowerCase() === n)
   if (found) return found
+  // Normalized name match — strip special chars like "/" so "Glen Strachy / Gaz Potter" matches "Glen Strachy Gaz Potter"
+  const normalize = s => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim()
+  const nNorm = normalize(n)
+  found = members.find(item => normalize(item.name) === nNorm)
+  if (found) return found
   // Partial name match
   found = members.find(item => item.name.toLowerCase().includes(n))
   if (found) return found
@@ -280,6 +285,10 @@ export default function ImportPage() {
     const sections = []
 
     for (let i = 0; i < raw.length; i++) {
+      // Skip rows with a valid date in the date column — data rows aren't crew headers
+      const rowDateVal = (raw[i] || [])[dateCol]
+      if (rowDateVal != null && excelDateToISO(rowDateVal)) continue
+
       const cells = (raw[i] || []).map(v => String(v || '').toLowerCase().trim())
       const found = []
 
@@ -325,14 +334,24 @@ export default function ImportPage() {
       const sec = sections[si]
       const { hdrIdx, crewCols } = sec
 
-      // Check for sub-header row below crew names (Hours, GP/Hour, GP Earned)
-      const nextRow = raw[hdrIdx + 1] || []
-      const subHdrs = nextRow.map(v => String(v || '').toLowerCase().trim())
-      const hasSubHeaders = subHdrs.some(v =>
-        v === 'hours' || v === 'hrs' || v.includes('gp/')  || v === 'gp earned'
-      )
+      // Check for sub-header row — search up to 2 rows below the header
+      let subHdrRow = null
+      let subHdrIdx = -1
+      for (let offset = 1; offset <= 2; offset++) {
+        const checkIdx = hdrIdx + offset
+        if (checkIdx >= raw.length) break
+        const checkRow = (raw[checkIdx] || []).map(v => String(v || '').toLowerCase().trim())
+        if (checkRow.some(v =>
+          v === 'hours' || v === 'hrs' || v.includes('gp/') || v === 'gp earned'
+        )) {
+          subHdrRow = checkRow
+          subHdrIdx = checkIdx
+          break
+        }
+      }
+      const hasSubHeaders = subHdrRow !== null
 
-      sec.dataStart = hasSubHeaders ? hdrIdx + 2 : hdrIdx + 1
+      sec.dataStart = hasSubHeaders ? subHdrIdx + 1 : hdrIdx + 1
       // Data rows end at the next section's header row, or end of sheet
       sec.dataEnd = si < sections.length - 1 ? sections[si + 1].hdrIdx : raw.length
 
@@ -345,15 +364,26 @@ export default function ImportPage() {
           if (gap >= 3 && gap <= 6) blockWidth = gap
         }
 
-        console.log(`[Import] Section ${si + 1}: sub-headers detected, blockWidth=${blockWidth}, rows ${sec.dataStart}–${sec.dataEnd - 1}`)
+        console.log(`[Import] Section ${si + 1}: sub-headers at row ${subHdrIdx}, blockWidth=${blockWidth}, data rows ${sec.dataStart}–${sec.dataEnd - 1}`)
 
         for (let c = 0; c < crewCols.length; c++) {
           const startC = crewCols[c].colIdx
+          const endC = c < crewCols.length - 1 ? crewCols[c + 1].colIdx : startC + blockWidth
+
+          // Scan sub-header row for actual column positions within this crew's block
+          let hoursCol = startC + 1   // default
+          let gpEarnedCol = startC + 3 // default
+          for (let ci = startC + 1; ci < endC; ci++) {
+            const sh = subHdrRow[ci] || ''
+            if (sh === 'hours' || sh === 'hrs') hoursCol = ci
+            if (sh.includes('gp')) gpEarnedCol = ci // rightmost gp column = GP Earned
+          }
+
           crewConfig.push({
             rawName: crewCols[c].rawName,
             jobCol: startC,
-            hoursCol: startC + 1,
-            gpEarnedCol: startC + blockWidth - 1,
+            hoursCol,
+            gpEarnedCol,
             member: matchTeamMember(crewCols[c].rawName, members),
           })
         }

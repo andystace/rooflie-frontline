@@ -29,3 +29,5 @@
 | IMPORT-F01d | George double entry — word-boundary matching prevents false crew column detection | Done |
 | BUG-FRONTLINE-12b | Job 1109 Milestone windmill — Number() coercion for job_no comparison, strip invisible chars | Done |
 | IMPORT-F01e | Multi-section crew parsing — scan all rows for crew headers, import from all sections | Done |
+| IMPORT-F01f | Section 2 hours/GP offset fix — scan sub-header row for column positions, date guard on header detection | Done |
+| BUG-FRONTLINE-19 | Glen Strachy Gaz Potter unmatched — normalized name matching strips special chars | Done |
