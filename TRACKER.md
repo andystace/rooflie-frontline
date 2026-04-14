@@ -28,3 +28,4 @@
 | IMPORT-F01c | Patch column matching — debug logging, word-boundary header detection, crew dedup | Done |
 | IMPORT-F01d | George double entry — word-boundary matching prevents false crew column detection | Done |
 | BUG-FRONTLINE-12b | Job 1109 Milestone windmill — Number() coercion for job_no comparison, strip invisible chars | Done |
+| IMPORT-F01e | Multi-section crew parsing — scan all rows for crew headers, import from all sections | Done |

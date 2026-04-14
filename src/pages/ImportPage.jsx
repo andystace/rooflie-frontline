@@ -276,11 +276,10 @@ export default function ImportPage() {
       return new RegExp(`\\b${escaped}\\b`).test(cell)
     }
 
-    // Find header row with crew names
-    let hdrIdx = -1
-    let crewCols = []
+    // Scan ALL rows for crew header rows (rows with 2+ team member name matches)
+    const sections = []
 
-    for (let i = 0; i < Math.min(raw.length, 15); i++) {
+    for (let i = 0; i < raw.length; i++) {
       const cells = (raw[i] || []).map(v => String(v || '').toLowerCase().trim())
       const found = []
 
@@ -295,77 +294,87 @@ export default function ImportPage() {
       })
 
       if (found.length >= 2) {
-        hdrIdx = i
-        crewCols = found
-        break
+        sections.push({ hdrIdx: i, crewCols: found })
       }
     }
 
-    // Debug: log every cell in the detected header row
-    if (hdrIdx >= 0) {
-      const headerRow = raw[hdrIdx] || []
-      console.log(`[Import] Header row ${hdrIdx} — all cells:`)
+    // Debug: log all detected header rows
+    console.log(`[Import] Found ${sections.length} crew header section(s)`)
+    sections.forEach((sec, si) => {
+      const headerRow = raw[sec.hdrIdx] || []
+      console.log(`[Import] Section ${si + 1} — header row ${sec.hdrIdx} (${sec.crewCols.length} crew):`)
       headerRow.forEach((cell, ci) => {
         const val = String(cell ?? '').trim()
         if (!val) return
         const lower = val.toLowerCase()
         const matchedName = knownNames.find(kn => cellMatchesKnownName(lower, kn))
-        const inCrew = crewCols.some(c => c.colIdx === ci)
+        const inCrew = sec.crewCols.some(c => c.colIdx === ci)
         console.log(`  Col ${ci}: "${val}" → ${matchedName ? `matched "${matchedName}"` : 'no match'}${inCrew ? ' ✓ CREW' : ''}`)
       })
-    } else {
-      console.log('[Import] No header row found in first 15 rows')
+    })
+
+    if (sections.length === 0) {
+      console.log('[Import] No crew header rows found in the sheet')
+      setScheduleRows([]); setCrewMapping([]); return
     }
 
-    if (hdrIdx < 0) { setScheduleRows([]); setCrewMapping([]); return }
+    // Build crew config for each section
+    let allCrewConfig = [] // merged across all sections for UI display
 
-    // Check for sub-header row below crew names (Hours, GP/Hour, GP Earned)
-    const nextRow = raw[hdrIdx + 1] || []
-    const subHdrs = nextRow.map(v => String(v || '').toLowerCase().trim())
-    const hasSubHeaders = subHdrs.some(v =>
-      v === 'hours' || v === 'hrs' || v.includes('gp/')  || v === 'gp earned'
-    )
+    for (let si = 0; si < sections.length; si++) {
+      const sec = sections[si]
+      const { hdrIdx, crewCols } = sec
 
-    let dataStart = hasSubHeaders ? hdrIdx + 2 : hdrIdx + 1
-    let crewConfig = []
+      // Check for sub-header row below crew names (Hours, GP/Hour, GP Earned)
+      const nextRow = raw[hdrIdx + 1] || []
+      const subHdrs = nextRow.map(v => String(v || '').toLowerCase().trim())
+      const hasSubHeaders = subHdrs.some(v =>
+        v === 'hours' || v === 'hrs' || v.includes('gp/')  || v === 'gp earned'
+      )
 
-    if (hasSubHeaders) {
-      // Each crew block is exactly 4 columns: Job Name, Hours, GP/Hour, GP Earned
-      // Detect block width from spacing between consecutive crew headers
-      let blockWidth = 4
-      if (crewCols.length >= 2) {
-        const gap = crewCols[1].colIdx - crewCols[0].colIdx
-        if (gap >= 3 && gap <= 6) blockWidth = gap
+      sec.dataStart = hasSubHeaders ? hdrIdx + 2 : hdrIdx + 1
+      // Data rows end at the next section's header row, or end of sheet
+      sec.dataEnd = si < sections.length - 1 ? sections[si + 1].hdrIdx : raw.length
+
+      let crewConfig = []
+
+      if (hasSubHeaders) {
+        let blockWidth = 4
+        if (crewCols.length >= 2) {
+          const gap = crewCols[1].colIdx - crewCols[0].colIdx
+          if (gap >= 3 && gap <= 6) blockWidth = gap
+        }
+
+        console.log(`[Import] Section ${si + 1}: sub-headers detected, blockWidth=${blockWidth}, rows ${sec.dataStart}–${sec.dataEnd - 1}`)
+
+        for (let c = 0; c < crewCols.length; c++) {
+          const startC = crewCols[c].colIdx
+          crewConfig.push({
+            rawName: crewCols[c].rawName,
+            jobCol: startC,
+            hoursCol: startC + 1,
+            gpEarnedCol: startC + blockWidth - 1,
+            member: matchTeamMember(crewCols[c].rawName, members),
+          })
+        }
+      } else {
+        crewConfig = crewCols.map(cc => ({
+          rawName: cc.rawName,
+          jobCol: cc.colIdx,
+          hoursCol: -1,
+          gpEarnedCol: -1,
+          member: matchTeamMember(cc.rawName, members),
+        }))
       }
 
-      console.log(`[Import] Sub-headers detected, blockWidth=${blockWidth}`)
-
-      for (let c = 0; c < crewCols.length; c++) {
-        const startC = crewCols[c].colIdx
-
-        crewConfig.push({
-          rawName: crewCols[c].rawName,
-          jobCol: startC,                      // col 0: job name
-          hoursCol: startC + 1,                // col 1: hours
-          gpEarnedCol: startC + blockWidth - 1, // last col: GP earned
-          member: matchTeamMember(crewCols[c].rawName, members),
-        })
-      }
-    } else {
-      // Single column per crew — cell contains job name (possibly multi-line)
-      crewConfig = crewCols.map(cc => ({
-        rawName: cc.rawName,
-        jobCol: cc.colIdx,
-        hoursCol: -1,
-        gpEarnedCol: -1,
-        member: matchTeamMember(cc.rawName, members),
-      }))
+      sec.crewConfig = crewConfig
+      allCrewConfig = allCrewConfig.concat(crewConfig)
     }
 
-    // Dedup: prevent same team member being assigned to multiple columns
+    // Dedup: prevent same team member being assigned to multiple columns (across all sections)
     const seenMemberIds = new Set()
-    crewConfig = crewConfig.filter(cc => {
-      if (!cc.member) return true // keep unmatched for display
+    allCrewConfig = allCrewConfig.filter(cc => {
+      if (!cc.member) return true
       if (seenMemberIds.has(cc.member.id)) {
         console.log(`[Import] Removing duplicate crew column for ${cc.member.name} at col ${cc.jobCol}`)
         return false
@@ -374,92 +383,105 @@ export default function ImportPage() {
       return true
     })
 
+    // Also dedup within each section's crewConfig (for data parsing)
+    const seenMemberIds2 = new Set()
+    for (const sec of sections) {
+      sec.crewConfig = sec.crewConfig.filter(cc => {
+        if (!cc.member) return true
+        if (seenMemberIds2.has(cc.member.id)) return false
+        seenMemberIds2.add(cc.member.id)
+        return true
+      })
+    }
+
     // Log final crew config
-    console.log('[Import] Final crew config:')
-    crewConfig.forEach(cc => {
+    console.log('[Import] Final crew config (all sections):')
+    allCrewConfig.forEach(cc => {
       console.log(`  "${cc.rawName}" col ${cc.jobCol} → ${cc.member?.name || 'UNMATCHED'} (hours=${cc.hoursCol}, gpEarned=${cc.gpEarnedCol})`)
     })
 
-    setCrewMapping(crewConfig.map(c => ({ rawName: c.rawName, member: c.member })))
+    setCrewMapping(allCrewConfig.map(c => ({ rawName: c.rawName, member: c.member })))
 
-    // Parse data rows
+    // Parse data rows from each section
     const entries = []
 
-    for (let i = dataStart; i < raw.length; i++) {
-      const row = raw[i]
-      if (!row) continue
+    for (const sec of sections) {
+      for (let i = sec.dataStart; i < sec.dataEnd; i++) {
+        const row = raw[i]
+        if (!row) continue
 
-      const dateStr = excelDateToISO(row[dateCol])
-      if (!dateStr) continue
+        const dateStr = excelDateToISO(row[dateCol])
+        if (!dateStr) continue
 
-      // Skip weekends
-      if (isWeekend(new Date(dateStr + 'T12:00:00'))) continue
+        // Skip weekends
+        if (isWeekend(new Date(dateStr + 'T12:00:00'))) continue
 
-      for (const cc of crewConfig) {
-        if (!cc.member) continue
+        for (const cc of sec.crewConfig) {
+          if (!cc.member) continue
 
-        const cellVal = row[cc.jobCol]
-        if (cellVal === null || cellVal === undefined) continue
-        const cellText = String(cellVal).trim()
-        if (!cellText || cellText === '-' || cellText === '0' || cellText.toLowerCase() === 'n/a') continue
+          const cellVal = row[cc.jobCol]
+          if (cellVal === null || cellVal === undefined) continue
+          const cellText = String(cellVal).trim()
+          if (!cellText || cellText === '-' || cellText === '0' || cellText.toLowerCase() === 'n/a') continue
 
-        let jobName = cellText
+          let jobName = cellText
 
-        // Multi-line cell: first line = job name
-        if (cellText.includes('\n')) {
-          const lines = cellText.split('\n').map(l => l.trim()).filter(Boolean)
-          jobName = lines[0]
-        }
+          // Multi-line cell: first line = job name
+          if (cellText.includes('\n')) {
+            const lines = cellText.split('\n').map(l => l.trim()).filter(Boolean)
+            jobName = lines[0]
+          }
 
-        if (!jobName) continue
+          if (!jobName) continue
 
-        // Skip entries where "job name" is purely numeric (data from adjacent column)
-        if (/^\d+(\.\d+)?$/.test(jobName)) continue
+          // Skip entries where "job name" is purely numeric (data from adjacent column)
+          if (/^\d+(\.\d+)?$/.test(jobName)) continue
 
-        // Hours from dedicated column, default 8
-        let hours = 8
-        if (cc.hoursCol >= 0) {
-          const h = cleanNum(row[cc.hoursCol])
-          if (h > 0 && h <= 24) hours = h
-        }
+          // Hours from dedicated column, default 8
+          let hours = 8
+          if (cc.hoursCol >= 0) {
+            const h = cleanNum(row[cc.hoursCol])
+            if (h > 0 && h <= 24) hours = h
+          }
 
-        // Detect non-productive entries (holiday, sick, etc.) — import with correct entry_type
-        const nonProdType = detectNonProductive(jobName)
-        if (nonProdType) {
+          // Detect non-productive entries (holiday, sick, etc.) — import with correct entry_type
+          const nonProdType = detectNonProductive(jobName)
+          if (nonProdType) {
+            entries.push({
+              date: dateStr,
+              team_member_id: cc.member.id,
+              memberName: cc.member.name,
+              jobName,
+              hours,
+              gpEarned: 0,
+              entry_type: nonProdType,
+              job_id: null,
+              jobMatched: true,
+            })
+            continue
+          }
+
+          // GP earned from dedicated column
+          let gpEarned = 0
+          if (cc.gpEarnedCol >= 0) {
+            gpEarned = cleanNum(row[cc.gpEarnedCol])
+          }
+
+          // Match job name to existing jobs table
+          const job = matchJob(jobName, jobs)
+
           entries.push({
             date: dateStr,
             team_member_id: cc.member.id,
             memberName: cc.member.name,
             jobName,
             hours,
-            gpEarned: 0,
-            entry_type: nonProdType,
-            job_id: null,
-            jobMatched: true, // not a job — no match needed
+            gpEarned,
+            entry_type: 'job',
+            job_id: job?.id || null,
+            jobMatched: !!job,
           })
-          continue
         }
-
-        // GP earned from dedicated column
-        let gpEarned = 0
-        if (cc.gpEarnedCol >= 0) {
-          gpEarned = cleanNum(row[cc.gpEarnedCol])
-        }
-
-        // Match job name to existing jobs table
-        const job = matchJob(jobName, jobs)
-
-        entries.push({
-          date: dateStr,
-          team_member_id: cc.member.id,
-          memberName: cc.member.name,
-          jobName,
-          hours,
-          gpEarned,
-          entry_type: 'job',
-          job_id: job?.id || null,
-          jobMatched: !!job,
-        })
       }
     }
 
