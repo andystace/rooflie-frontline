@@ -4,11 +4,25 @@ import { Upload, CheckCircle, AlertTriangle, Trash2, FileSpreadsheet } from 'luc
 import { supabase } from '../lib/supabase'
 import { format, isWeekend } from 'date-fns'
 
-// Non-productive job names (jobs 1–6) to skip during calendar import
-const SKIP_JOBS = new Set([
-  'office time', 'office', 'unbilled', 'rained off', 'rain off',
-  'surveys', 'survey', 'holiday', 'holidays', 'sick', 'sickness', 'training',
-])
+// Map non-productive job names to schedule entry types (instead of skipping them)
+const NON_PRODUCTIVE_MAP = {
+  'holiday': 'holiday', 'holidays': 'holiday',
+  'sick': 'sick', 'sickness': 'sick',
+  'rained off': 'rained_off', 'rain off': 'rained_off',
+  'office time': 'office', 'office': 'office',
+  'surveys': 'surveys', 'survey': 'surveys',
+  'unbilled': 'unbilled',
+  'training': 'training',
+}
+
+function detectNonProductive(jobName) {
+  const lower = jobName.toLowerCase().trim()
+  if (NON_PRODUCTIVE_MAP[lower]) return NON_PRODUCTIVE_MAP[lower]
+  // Strip leading number prefix like "5 - Holiday" → "holiday"
+  const stripped = lower.replace(/^\d+\s*[-–—]\s*/, '').trim()
+  if (NON_PRODUCTIVE_MAP[stripped]) return NON_PRODUCTIVE_MAP[stripped]
+  return null
+}
 
 /* ---- Helpers ---- */
 
@@ -286,32 +300,22 @@ export default function ImportPage() {
     let crewConfig = []
 
     if (hasSubHeaders) {
-      // Each crew has 3 sub-columns: Hours, GP/Hour, GP Earned
-      // The crew name column itself holds the job name in data rows
+      // Each crew block is exactly 4 columns: Job Name, Hours, GP/Hour, GP Earned
+      // Detect block width from spacing between consecutive crew headers
+      let blockWidth = 4
+      if (crewCols.length >= 2) {
+        const gap = crewCols[1].colIdx - crewCols[0].colIdx
+        if (gap >= 3 && gap <= 6) blockWidth = gap
+      }
+
       for (let c = 0; c < crewCols.length; c++) {
         const startC = crewCols[c].colIdx
-        const endC = c < crewCols.length - 1 ? crewCols[c + 1].colIdx : startC + 5
-
-        let jobCol = startC   // job name lives in the crew name column
-        let hoursCol = -1
-        let gpEarnedCol = -1
-
-        for (let ci = startC; ci < endC; ci++) {
-          const sh = subHdrs[ci] || ''
-          // Match "hours" / "hrs" but NOT "gp/hour"
-          if ((sh === 'hours' || sh === 'hrs') && !sh.includes('/')) {
-            hoursCol = ci
-          } else if (sh === 'gp earned' || sh === 'gp' || sh === 'earned') {
-            gpEarnedCol = ci
-          }
-          // "gp/hour" and "gp/hr" are noted but not needed for import
-        }
 
         crewConfig.push({
           rawName: crewCols[c].rawName,
-          jobCol,
-          hoursCol,
-          gpEarnedCol,
+          jobCol: startC,                      // col 0: job name
+          hoursCol: startC + 1,                // col 1: hours
+          gpEarnedCol: startC + blockWidth - 1, // last col: GP earned
           member: matchTeamMember(crewCols[c].rawName, members),
         })
       }
@@ -359,14 +363,31 @@ export default function ImportPage() {
 
         if (!jobName) continue
 
-        // Skip non-productive entries (jobs 1-6: holiday, sick, rained off, etc.)
-        if (SKIP_JOBS.has(jobName.toLowerCase())) continue
+        // Skip entries where "job name" is purely numeric (data from adjacent column)
+        if (/^\d+(\.\d+)?$/.test(jobName)) continue
 
         // Hours from dedicated column, default 8
         let hours = 8
         if (cc.hoursCol >= 0) {
           const h = cleanNum(row[cc.hoursCol])
           if (h > 0 && h <= 24) hours = h
+        }
+
+        // Detect non-productive entries (holiday, sick, etc.) — import with correct entry_type
+        const nonProdType = detectNonProductive(jobName)
+        if (nonProdType) {
+          entries.push({
+            date: dateStr,
+            team_member_id: cc.member.id,
+            memberName: cc.member.name,
+            jobName,
+            hours,
+            gpEarned: 0,
+            entry_type: nonProdType,
+            job_id: null,
+            jobMatched: true, // not a job — no match needed
+          })
+          continue
         }
 
         // GP earned from dedicated column
@@ -539,7 +560,8 @@ export default function ImportPage() {
   /* ---- Derived values ---- */
 
   const unmatchedCrew = crewMapping.filter(c => !c.member)
-  const unmatchedJobNames = [...new Set(scheduleRows.filter(e => !e.jobMatched).map(e => e.jobName))]
+  const unmatchedJobNames = [...new Set(scheduleRows.filter(e => e.entry_type === 'job' && !e.jobMatched).map(e => e.jobName))]
+  const nonProdCount = scheduleRows.filter(e => e.entry_type !== 'job').length
 
   /* ---- Render ---- */
 
@@ -643,7 +665,8 @@ export default function ImportPage() {
             <div>
               <h3 className="text-sm font-semibold text-navy">Step 2: Calendar View — Schedule Entries</h3>
               <p className="text-xs text-gray-500">
-                {scheduleRows.length} entries parsed (non-productive rows skipped)
+                {scheduleRows.length} entries parsed
+                {nonProdCount > 0 && ` (${nonProdCount} non-productive)`}
                 {unmatchedJobNames.length > 0 && (
                   <span className="text-amber-600 ml-1">
                     ({unmatchedJobNames.length} unmatched job name{unmatchedJobNames.length !== 1 ? 's' : ''})

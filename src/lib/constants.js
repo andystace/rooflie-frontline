@@ -8,7 +8,7 @@ export const JOB_STATUSES = [
 
 export const ENTRY_TYPES = [
   { value: 'job', label: 'Job', colour: null },
-  { value: 'holiday', label: 'Holiday', colour: '#9B59B6' },
+  { value: 'holiday', label: 'Holiday', colour: '#9CA3AF' },
   { value: 'sick', label: 'Sick', colour: '#E74C3C' },
   { value: 'rained_off', label: 'Rained Off', colour: '#95A5A6' },
   { value: 'office', label: 'Office Time', colour: '#3498DB' },

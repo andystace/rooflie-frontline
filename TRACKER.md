@@ -21,3 +21,7 @@
 | BUG-FRONTLINE-13 | Month GP Forecast changes with week scroll — fetch full month data separately | Done |
 | ENH-FRONTLINE-02 | Nickname field for team members — edit form, import matching on name + nickname | Done |
 | IMPORT-F01b-GP | Fix GP storage, job matching (keyword fallback, name-part matching), store gp_earned from spreadsheet | Done |
+| BUG-FRONTLINE-15 | Holiday rows now imported as schedule entries (entry_type: holiday) instead of skipped | Done |
+| BUG-FRONTLINE-16 | Skip blank/numeric-only job name cells — prevent false "Unassigned" entries | Done |
+| BUG-FRONTLINE-17 | Fix column offset bug — deterministic 4-col block width from crew header spacing | Done |
+| BUG-FRONTLINE-18 | Ross Sommers GP fix — gpEarnedCol now correctly assigned via fixed block offsets | Done |
