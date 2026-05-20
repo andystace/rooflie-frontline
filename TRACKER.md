@@ -35,3 +35,4 @@
 | ENH-FRONTLINE-04 | Full-width layout on large screens — removed max-width constraints from all pages and header | Done |
 | IMPORT-F01h | Section 2 sub-header scan — search 10 rows, all crew cols, raw dump logging, next-section guard | Done |
 | IMPORT-F01j | Root cause fix — min-gap filter rejects summary rows, block-width-limited column scan, GP/Hour exclusion from hours match. Verified: £71,488.64 GP total | Done |
+| IMPORT-F01m | Keyword job matching for short-prefix entries — strip 1-2 digit category prefix before matching; "1 - variations, st nicks" → job 1118, "1 - oxford finish off" → job 1078, "2 - pre start at lodge trust" → job 1134. Verified 50/50 matched on May spreadsheet | Done |

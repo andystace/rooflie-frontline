@@ -92,6 +92,13 @@ function matchJob(name, jobs) {
   let namePart = nLower
   if (numMatch) {
     namePart = n.slice(numMatch[0].length).replace(/^[\s\-–—:]+/, '').trim().toLowerCase()
+  } else {
+    // Strip short category-number prefix like "1 - " or "2 - " (1-2 digits, not a real job number)
+    // e.g. "1 - variations, st nicks" → "variations, st nicks"
+    const shortPrefix = n.match(/^\s*\d{1,2}\s*[-–—]\s*/)
+    if (shortPrefix) {
+      namePart = n.slice(shortPrefix[0].length).trim().toLowerCase()
+    }
   }
 
   // 3. Exact name match on name part
