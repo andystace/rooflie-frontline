@@ -275,15 +275,15 @@ export default function CsvImport({ onDone }) {
 function JobPreviewTable({ rows, muted }) {
   return (
     <table className="w-full text-sm">
-      <thead className="sticky top-0 bg-white">
+      <thead>
         <tr className="border-b border-gray-200">
-          <th className="text-left px-4 py-2 font-semibold text-navy">No</th>
-          <th className="text-left px-4 py-2 font-semibold text-navy">Name</th>
-          <th className="text-left px-4 py-2 font-semibold text-navy">Customer</th>
-          <th className="text-left px-4 py-2 font-semibold text-navy">Status</th>
-          <th className="text-right px-4 py-2 font-semibold text-navy">Value</th>
-          <th className="text-right px-4 py-2 font-semibold text-navy">GP</th>
-          <th className="text-right px-4 py-2 font-semibold text-navy">Hours</th>
+          <th className="sticky top-0 bg-white text-left px-4 py-2 font-semibold text-navy">No</th>
+          <th className="sticky top-0 bg-white text-left px-4 py-2 font-semibold text-navy">Name</th>
+          <th className="sticky top-0 bg-white text-left px-4 py-2 font-semibold text-navy">Customer</th>
+          <th className="sticky top-0 bg-white text-left px-4 py-2 font-semibold text-navy">Status</th>
+          <th className="sticky top-0 bg-white text-right px-4 py-2 font-semibold text-navy">Value</th>
+          <th className="sticky top-0 bg-white text-right px-4 py-2 font-semibold text-navy">GP</th>
+          <th className="sticky top-0 bg-white text-right px-4 py-2 font-semibold text-navy">Hours</th>
         </tr>
       </thead>
       <tbody className={muted ? 'opacity-50' : ''}>
