@@ -234,17 +234,35 @@ export default function CsvImport({ onDone }) {
                     <> <strong>{skippedRows.length}</strong> already in Frontline — will be skipped.</>
                   )}
                 </div>
+
+                {/* Column header — a real row sitting above the scroll area, not
+                    "sticky" inside it, so it can never scroll away. */}
+                <div
+                  className="grid gap-2 px-4 py-2 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-navy"
+                  style={{ gridTemplateColumns: JOB_GRID_COLUMNS }}
+                >
+                  <div>No</div>
+                  <div>Name</div>
+                  <div>Customer</div>
+                  <div>Status</div>
+                  <div className="text-right">Value</div>
+                  <div className="text-right">GP</div>
+                  <div className="text-right">Hours</div>
+                </div>
+
                 <div className="flex-1 overflow-y-auto">
-                  {newRows.length > 0 && (
-                    <JobPreviewTable rows={newRows} />
-                  )}
+                  {newRows.map((row, i) => (
+                    <JobPreviewRow key={i} row={row} />
+                  ))}
                   {skippedRows.length > 0 && (
-                    <div className="border-t border-gray-200">
-                      <div className="px-4 py-2 bg-amber-50 text-xs font-semibold text-amber-800">
+                    <>
+                      <div className="px-4 py-2 bg-amber-50 text-xs font-semibold text-amber-800 border-y border-gray-200">
                         Already in Frontline — not touched
                       </div>
-                      <JobPreviewTable rows={skippedRows} muted />
-                    </div>
+                      {skippedRows.map((row, i) => (
+                        <JobPreviewRow key={i} row={row} muted />
+                      ))}
+                    </>
                   )}
                 </div>
                 <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
@@ -272,33 +290,22 @@ export default function CsvImport({ onDone }) {
   )
 }
 
-function JobPreviewTable({ rows, muted }) {
+// Shared column widths so the header row and each data row line up exactly.
+const JOB_GRID_COLUMNS = '70px 2fr 1.3fr 110px 90px 90px 70px'
+
+function JobPreviewRow({ row, muted }) {
   return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b border-gray-200">
-          <th className="sticky top-0 bg-white text-left px-4 py-2 font-semibold text-navy">No</th>
-          <th className="sticky top-0 bg-white text-left px-4 py-2 font-semibold text-navy">Name</th>
-          <th className="sticky top-0 bg-white text-left px-4 py-2 font-semibold text-navy">Customer</th>
-          <th className="sticky top-0 bg-white text-left px-4 py-2 font-semibold text-navy">Status</th>
-          <th className="sticky top-0 bg-white text-right px-4 py-2 font-semibold text-navy">Value</th>
-          <th className="sticky top-0 bg-white text-right px-4 py-2 font-semibold text-navy">GP</th>
-          <th className="sticky top-0 bg-white text-right px-4 py-2 font-semibold text-navy">Hours</th>
-        </tr>
-      </thead>
-      <tbody className={muted ? 'opacity-50' : ''}>
-        {rows.map((row, i) => (
-          <tr key={i} className="border-b border-gray-100">
-            <td className="px-4 py-1.5 font-mono text-gray-500">{row.job_no || '—'}</td>
-            <td className="px-4 py-1.5 max-w-[200px] truncate">{row.job_name}</td>
-            <td className="px-4 py-1.5 max-w-[150px] truncate text-gray-600">{row.customer || '—'}</td>
-            <td className="px-4 py-1.5 capitalize text-xs">{row.status.replace('_', ' ')}</td>
-            <td className="px-4 py-1.5 text-right tabular-nums">£{row.sold_value.toLocaleString()}</td>
-            <td className="px-4 py-1.5 text-right tabular-nums">£{row.sold_gp.toLocaleString()}</td>
-            <td className="px-4 py-1.5 text-right tabular-nums">{row.hours_allowed}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div
+      className={`grid gap-2 px-4 py-1.5 text-sm border-b border-gray-100 ${muted ? 'opacity-50' : ''}`}
+      style={{ gridTemplateColumns: JOB_GRID_COLUMNS }}
+    >
+      <div className="font-mono text-gray-500">{row.job_no || '—'}</div>
+      <div className="truncate">{row.job_name}</div>
+      <div className="truncate text-gray-600">{row.customer || '—'}</div>
+      <div className="capitalize text-xs self-center">{row.status.replace('_', ' ')}</div>
+      <div className="text-right tabular-nums">£{row.sold_value.toLocaleString()}</div>
+      <div className="text-right tabular-nums">£{row.sold_gp.toLocaleString()}</div>
+      <div className="text-right tabular-nums">{row.hours_allowed}</div>
+    </div>
   )
 }
