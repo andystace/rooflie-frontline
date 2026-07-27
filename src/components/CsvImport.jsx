@@ -71,6 +71,11 @@ function parseSimproCsv(text) {
         jobName = jobRaw.substring(firstDash + 3).trim()
       }
     }
+
+    // Rows with no leading job number aren't real jobs — this is how SimPRO's
+    // own "Total" summary row at the bottom of an export shows up. Skip it.
+    if (jobNo === null) continue
+
     // If jobName is empty, use the full raw value
     if (!jobName) jobName = jobRaw
 
@@ -86,10 +91,14 @@ function parseSimproCsv(text) {
     const hoursRaw = (fields[hoursCol] || '').trim()
     const hoursAllowed = parseFloat(hoursRaw) || 0
 
-    // Status mapping
+    // Status mapping. Checked in this order because a couple of SimPRO's own
+    // "complete" phrasings (including a typo'd "Completedon site" with no
+    // space) need to be caught before anything else, or they'd fall through
+    // to the "confirmed" default and look like they're still live.
     const statusRaw = (fields[statusCol] || '').toLowerCase()
     let status = 'confirmed'
-    if (statusRaw.includes('job review')) status = 'pipeline'
+    if (statusRaw.includes('complete')) status = 'complete'
+    else if (statusRaw.includes('job review')) status = 'pipeline'
     else if (statusRaw.includes('on hold')) status = 'on_hold'
     else if (statusRaw.includes('in progress')) status = 'in_progress'
 
@@ -115,57 +124,74 @@ function parseSimproCsv(text) {
 
 export default function CsvImport({ onDone }) {
   const fileRef = useRef(null)
-  const [preview, setPreview] = useState(null) // parsed rows
+  const [newRows, setNewRows] = useState(null) // rows not yet in Frontline
+  const [skippedRows, setSkippedRows] = useState([]) // rows whose job_no already exists
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
 
-  function handleFile(e) {
+  async function handleFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const text = ev.target.result
-      const rows = parseSimproCsv(text)
-      setPreview(rows)
+      const parsed = parseSimproCsv(text)
+
+      // This app is a short-lived bridge from SimPRO — once a job number is
+      // in Frontline, SimPRO re-imports never touch it again. Any real
+      // changes (variations etc.) are made directly in Frontline from then
+      // on. So the only question importing needs to answer is: is this job
+      // number already here, yes or no.
+      const { data: existing, error } = await supabase.from('jobs').select('job_no')
+      if (error) {
+        setResult({ success: false, message: error.message })
+        return
+      }
+      const existingNos = new Set((existing || []).map(j => j.job_no))
+
+      setNewRows(parsed.filter(r => !existingNos.has(r.job_no)))
+      setSkippedRows(parsed.filter(r => existingNos.has(r.job_no)))
       setResult(null)
     }
     reader.readAsText(file)
   }
 
   async function handleImport() {
-    if (!preview || preview.length === 0) return
+    if (!newRows || newRows.length === 0) return
     setImporting(true)
     setResult(null)
 
     const now = new Date().toISOString()
     const { data, error } = await supabase
       .from('jobs')
-      .upsert(
-        preview.map(r => ({ ...r, updated_at: now })),
-        { onConflict: 'job_no' }
-      )
+      .insert(newRows.map(r => ({ ...r, updated_at: now })))
       .select()
 
     if (error) {
       setResult({ success: false, message: error.message })
     } else {
-      setResult({ success: true, message: `${data.length} jobs imported successfully.` })
-      setPreview(null)
+      const skippedNote = skippedRows.length > 0 ? ` (${skippedRows.length} already in Frontline, skipped)` : ''
+      setResult({ success: true, message: `${data.length} new jobs imported.${skippedNote}` })
+      setNewRows(null)
+      setSkippedRows([])
       onDone?.()
     }
     setImporting(false)
   }
 
   function handleClose() {
-    setPreview(null)
+    setNewRows(null)
+    setSkippedRows([])
     setResult(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
+  const hasPreview = newRows !== null
+
   return (
     <div>
       {/* Trigger button */}
-      {!preview && !result && (
+      {!hasPreview && !result && (
         <label className="flex items-center gap-1.5 bg-navy hover:bg-navy-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer">
           <Upload size={16} />
           Import from simPRO
@@ -180,7 +206,7 @@ export default function CsvImport({ onDone }) {
       )}
 
       {/* Preview / result modal */}
-      {(preview || result) && (
+      {(hasPreview || result) && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-8 sm:pt-16 px-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
@@ -200,38 +226,26 @@ export default function CsvImport({ onDone }) {
               </div>
             )}
 
-            {preview && (
+            {hasPreview && (
               <>
                 <div className="px-6 py-3 bg-gray-50 border-b border-gray-200 text-sm text-gray-600">
-                  Found <strong>{preview.length}</strong> jobs to import. Review below, then click Import.
+                  <strong>{newRows.length}</strong> new job{newRows.length === 1 ? '' : 's'} to import.
+                  {skippedRows.length > 0 && (
+                    <> <strong>{skippedRows.length}</strong> already in Frontline — will be skipped.</>
+                  )}
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-white">
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left px-4 py-2 font-semibold text-navy">No</th>
-                        <th className="text-left px-4 py-2 font-semibold text-navy">Name</th>
-                        <th className="text-left px-4 py-2 font-semibold text-navy">Customer</th>
-                        <th className="text-left px-4 py-2 font-semibold text-navy">Status</th>
-                        <th className="text-right px-4 py-2 font-semibold text-navy">Value</th>
-                        <th className="text-right px-4 py-2 font-semibold text-navy">GP</th>
-                        <th className="text-right px-4 py-2 font-semibold text-navy">Hours</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.map((row, i) => (
-                        <tr key={i} className="border-b border-gray-100">
-                          <td className="px-4 py-1.5 font-mono text-gray-500">{row.job_no || '—'}</td>
-                          <td className="px-4 py-1.5 max-w-[200px] truncate">{row.job_name}</td>
-                          <td className="px-4 py-1.5 max-w-[150px] truncate text-gray-600">{row.customer || '—'}</td>
-                          <td className="px-4 py-1.5 capitalize text-xs">{row.status.replace('_', ' ')}</td>
-                          <td className="px-4 py-1.5 text-right tabular-nums">£{row.sold_value.toLocaleString()}</td>
-                          <td className="px-4 py-1.5 text-right tabular-nums">£{row.sold_gp.toLocaleString()}</td>
-                          <td className="px-4 py-1.5 text-right tabular-nums">{row.hours_allowed}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {newRows.length > 0 && (
+                    <JobPreviewTable rows={newRows} />
+                  )}
+                  {skippedRows.length > 0 && (
+                    <div className="border-t border-gray-200">
+                      <div className="px-4 py-2 bg-amber-50 text-xs font-semibold text-amber-800">
+                        Already in Frontline — not touched
+                      </div>
+                      <JobPreviewTable rows={skippedRows} muted />
+                    </div>
+                  )}
                 </div>
                 <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
                   <button
@@ -242,11 +256,11 @@ export default function CsvImport({ onDone }) {
                   </button>
                   <button
                     onClick={handleImport}
-                    disabled={importing}
+                    disabled={importing || newRows.length === 0}
                     className="flex items-center gap-1.5 bg-orange hover:bg-orange-dark disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium"
                   >
                     <Upload size={14} />
-                    {importing ? 'Importing...' : `Import ${preview.length} Jobs`}
+                    {importing ? 'Importing...' : `Import ${newRows.length} New Job${newRows.length === 1 ? '' : 's'}`}
                   </button>
                 </div>
               </>
@@ -255,5 +269,36 @@ export default function CsvImport({ onDone }) {
         </div>
       )}
     </div>
+  )
+}
+
+function JobPreviewTable({ rows, muted }) {
+  return (
+    <table className="w-full text-sm">
+      <thead className="sticky top-0 bg-white">
+        <tr className="border-b border-gray-200">
+          <th className="text-left px-4 py-2 font-semibold text-navy">No</th>
+          <th className="text-left px-4 py-2 font-semibold text-navy">Name</th>
+          <th className="text-left px-4 py-2 font-semibold text-navy">Customer</th>
+          <th className="text-left px-4 py-2 font-semibold text-navy">Status</th>
+          <th className="text-right px-4 py-2 font-semibold text-navy">Value</th>
+          <th className="text-right px-4 py-2 font-semibold text-navy">GP</th>
+          <th className="text-right px-4 py-2 font-semibold text-navy">Hours</th>
+        </tr>
+      </thead>
+      <tbody className={muted ? 'opacity-50' : ''}>
+        {rows.map((row, i) => (
+          <tr key={i} className="border-b border-gray-100">
+            <td className="px-4 py-1.5 font-mono text-gray-500">{row.job_no || '—'}</td>
+            <td className="px-4 py-1.5 max-w-[200px] truncate">{row.job_name}</td>
+            <td className="px-4 py-1.5 max-w-[150px] truncate text-gray-600">{row.customer || '—'}</td>
+            <td className="px-4 py-1.5 capitalize text-xs">{row.status.replace('_', ' ')}</td>
+            <td className="px-4 py-1.5 text-right tabular-nums">£{row.sold_value.toLocaleString()}</td>
+            <td className="px-4 py-1.5 text-right tabular-nums">£{row.sold_gp.toLocaleString()}</td>
+            <td className="px-4 py-1.5 text-right tabular-nums">{row.hours_allowed}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
