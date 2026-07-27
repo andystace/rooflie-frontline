@@ -161,13 +161,43 @@ function MonthlyTargetsSection() {
 }
 
 function TeamSection() {
-  const { team, activeTeam, createMember, updateMember, deleteMember } = useTeam()
+  const { team, activeTeam, createMember, updateMember, deleteMember, deleteMembers } = useTeam()
   const [showAdd, setShowAdd] = useState(false)
   const [newMember, setNewMember] = useState({ name: '', role: 'roofer', day_rate: 250, colour: '#2563EB' })
   const [pairingSaved, setPairingSaved] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === team.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(team.map(m => m.id)))
+    }
+  }
+
+  async function handleBulkDelete() {
+    try {
+      await deleteMembers([...selectedIds])
+      setSelectedIds(new Set())
+      setConfirmBulkDelete(false)
+    } catch (err) {
+      alert('Cannot delete: ' + err.message)
+      setConfirmBulkDelete(false)
+    }
+  }
 
   async function handleAdd(e) {
     e.preventDefault()
@@ -260,9 +290,54 @@ function TeamSection() {
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-        <div>
-          <h3 className="text-sm font-semibold text-navy">Team Members</h3>
-          <p className="text-xs text-gray-500 mt-0.5">Manage team members — edit, delete, or deactivate to preserve history.</p>
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={team.length > 0 && selectedIds.size === team.length}
+            onChange={toggleSelectAll}
+            className="w-4 h-4 rounded border-gray-300 text-orange"
+            title="Select all"
+          />
+          {selectedIds.size > 0 ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-navy">{selectedIds.size} selected</span>
+              {confirmBulkDelete ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleBulkDelete}
+                    className="px-2 py-0.5 bg-red-600 text-white text-xs rounded font-medium hover:bg-red-700"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => setConfirmBulkDelete(false)}
+                    className="p-0.5 hover:bg-gray-100 rounded"
+                  >
+                    <X size={14} className="text-gray-500" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmBulkDelete(true)}
+                  className="flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-xs rounded font-medium hover:bg-red-700"
+                >
+                  <Trash2 size={12} />
+                  Delete Selected
+                </button>
+              )}
+              <button
+                onClick={() => { setSelectedIds(new Set()); setConfirmBulkDelete(false) }}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div>
+              <h3 className="text-sm font-semibold text-navy">Team Members</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Manage team members — edit, delete, or deactivate to preserve history.</p>
+            </div>
+          )}
         </div>
         <button
           onClick={() => setShowAdd(true)}
@@ -376,6 +451,12 @@ function TeamSection() {
 
           return (
             <div key={member.id} className={`flex items-center gap-3 px-4 py-3 ${!member.active ? 'opacity-50' : ''}`}>
+              <input
+                type="checkbox"
+                checked={selectedIds.has(member.id)}
+                onChange={() => toggleSelect(member.id)}
+                className="w-4 h-4 rounded border-gray-300 text-orange flex-shrink-0"
+              />
               <div
                 className="w-3 h-3 rounded-full flex-shrink-0"
                 style={{ backgroundColor: member.colour || '#6B7280' }}
