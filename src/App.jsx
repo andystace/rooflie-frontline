@@ -1,11 +1,12 @@
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { Calendar, Briefcase, BarChart3, FileText, Settings, LogOut, Upload } from 'lucide-react'
+import { Calendar, Briefcase, BarChart3, FileText, Settings, LogOut, Upload, Wallet } from 'lucide-react'
 import { useAuth } from './hooks/useAuth'
 import LoginPage from './pages/LoginPage'
 import SchedulePage from './pages/SchedulePage'
 import JobsPage from './pages/JobsPage'
 import DashboardPage from './pages/DashboardPage'
 import WipPage from './pages/WipPage'
+import PayPage from './pages/PayPage'
 import SettingsPage from './pages/SettingsPage'
 import ImportPage from './pages/ImportPage'
 
@@ -14,6 +15,7 @@ const navItems = [
   { to: '/jobs', label: 'Jobs', icon: Briefcase },
   { to: '/dashboard', label: 'Dashboard', icon: BarChart3 },
   { to: '/wip', label: 'WIP', icon: FileText },
+  { to: '/pay', label: 'Pay', icon: Wallet },
   { to: '/import', label: 'Import', icon: Upload },
   { to: '/settings', label: 'Settings', icon: Settings },
 ]
@@ -104,6 +106,7 @@ function App() {
           <Route path="/jobs" element={<JobsPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/wip" element={<WipPage />} />
+          <Route path="/pay" element={<PayPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/schedule" replace />} />

@@ -163,7 +163,7 @@ function MonthlyTargetsSection() {
 function TeamSection() {
   const { team, activeTeam, createMember, updateMember, deleteMember, deleteMembers } = useTeam()
   const [showAdd, setShowAdd] = useState(false)
-  const [newMember, setNewMember] = useState({ name: '', role: 'roofer', day_rate: 250, colour: '#2563EB' })
+  const [newMember, setNewMember] = useState({ name: '', role: 'roofer', day_rate: 250, pay_notes: '', colour: '#2563EB' })
   const [pairingSaved, setPairingSaved] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({})
@@ -206,9 +206,10 @@ function TeamSection() {
         name: newMember.name,
         role: newMember.role,
         day_rate: Number(newMember.day_rate) || 0,
+        pay_notes: newMember.pay_notes || null,
         colour: newMember.colour,
       })
-      setNewMember({ name: '', role: 'roofer', day_rate: 250, colour: '#2563EB' })
+      setNewMember({ name: '', role: 'roofer', day_rate: 250, pay_notes: '', colour: '#2563EB' })
       setShowAdd(false)
     } catch (err) {
       alert(err.message)
@@ -222,6 +223,7 @@ function TeamSection() {
       nickname: member.nickname || '',
       role: member.role,
       day_rate: member.day_rate,
+      pay_notes: member.pay_notes || '',
       colour: member.colour || '#6B7280',
     })
   }
@@ -233,6 +235,7 @@ function TeamSection() {
         nickname: editForm.nickname || null,
         role: editForm.role,
         day_rate: Number(editForm.day_rate) || 0,
+        pay_notes: editForm.pay_notes || null,
         colour: editForm.colour,
       })
       setEditingId(null)
@@ -339,52 +342,109 @@ function TeamSection() {
             </div>
           )}
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-1 bg-orange text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-orange-dark"
-        >
-          <Plus size={14} />
-          Add Member
-        </button>
+        {selectedIds.size > 0 ? (
+          confirmBulkDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Delete {selectedIds.size} member{selectedIds.size > 1 ? 's' : ''}?</span>
+              <button
+                onClick={handleBulkDelete}
+                className="px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg font-medium hover:bg-red-700"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setConfirmBulkDelete(false)}
+                className="p-1.5 hover:bg-gray-200 rounded"
+              >
+                <X size={16} className="text-gray-500" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">{selectedIds.size} selected</span>
+              <button
+                onClick={() => setConfirmBulkDelete(true)}
+                className="flex items-center gap-1 bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-700"
+              >
+                <Trash2 size={14} />
+                Delete Selected
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="px-2 py-1.5 text-sm text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+            </div>
+          )
+        ) : (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-1 bg-orange text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-orange-dark"
+          >
+            <Plus size={14} />
+            Add Member
+          </button>
+        )}
       </div>
 
       {showAdd && (
         <form onSubmit={handleAdd} className="p-4 border-b border-gray-200 bg-orange/5">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <input
-              placeholder="Name"
-              value={newMember.name}
-              onChange={e => setNewMember(f => ({ ...f, name: e.target.value }))}
-              required
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-            />
-            <select
-              value={newMember.role}
-              onChange={e => setNewMember(f => ({ ...f, role: e.target.value }))}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-            >
-              {TEAM_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
-            <input
-              type="number"
-              placeholder="Day rate"
-              value={newMember.day_rate}
-              onChange={e => setNewMember(f => ({ ...f, day_rate: e.target.value }))}
-              className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-            />
-            <div className="flex gap-2">
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+              Name
               <input
-                type="color"
-                value={newMember.colour}
-                onChange={e => setNewMember(f => ({ ...f, colour: e.target.value }))}
-                className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
+                placeholder="Name"
+                value={newMember.name}
+                onChange={e => setNewMember(f => ({ ...f, name: e.target.value }))}
+                required
+                className="border border-gray-300 rounded px-2 py-1.5 text-sm font-normal"
               />
-              <button type="submit" className="flex-1 bg-orange text-white rounded text-sm font-medium hover:bg-orange-dark">
-                Save
-              </button>
-              <button type="button" onClick={() => setShowAdd(false)} className="px-3 text-sm text-gray-600">Cancel</button>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+              Role
+              <select
+                value={newMember.role}
+                onChange={e => setNewMember(f => ({ ...f, role: e.target.value }))}
+                className="border border-gray-300 rounded px-2 py-1.5 text-sm font-normal"
+              >
+                {TEAM_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+              Day Rate (£)
+              <input
+                type="number"
+                value={newMember.day_rate}
+                onChange={e => setNewMember(f => ({ ...f, day_rate: e.target.value }))}
+                className="border border-gray-300 rounded px-2 py-1.5 text-sm font-normal"
+              />
+            </label>
+            <div className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+              Colour
+              <div className="flex gap-2">
+                <input
+                  type="color"
+                  value={newMember.colour}
+                  onChange={e => setNewMember(f => ({ ...f, colour: e.target.value }))}
+                  className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
+                />
+                <button type="submit" className="flex-1 bg-orange text-white rounded text-sm font-medium hover:bg-orange-dark">
+                  Save
+                </button>
+                <button type="button" onClick={() => setShowAdd(false)} className="px-3 text-sm text-gray-600">Cancel</button>
+              </div>
             </div>
           </div>
+          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600 mt-3">
+            Pay Notes (optional — for anyone not on a simple day rate, e.g. subcontractors)
+            <input
+              placeholder="e.g. Paid per m² by Ross — invoiced separately"
+              value={newMember.pay_notes}
+              onChange={e => setNewMember(f => ({ ...f, pay_notes: e.target.value }))}
+              className="border border-gray-300 rounded px-2 py-1.5 text-sm font-normal w-full"
+            />
+          </label>
         </form>
       )}
 
@@ -397,54 +457,76 @@ function TeamSection() {
             return (
               <div key={member.id} className="px-4 py-3 bg-blue-50/50">
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <input
-                    value={editForm.name}
-                    onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-                    placeholder="Name"
-                    autoFocus
-                  />
-                  <input
-                    value={editForm.nickname}
-                    onChange={e => setEditForm(f => ({ ...f, nickname: e.target.value }))}
-                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-                    placeholder="Nickname (optional)"
-                  />
-                  <select
-                    value={editForm.role}
-                    onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
-                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-                  >
-                    {TEAM_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                  </select>
-                  <input
-                    type="number"
-                    value={editForm.day_rate}
-                    onChange={e => setEditForm(f => ({ ...f, day_rate: e.target.value }))}
-                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-                    placeholder="Day rate"
-                  />
-                  <div className="flex gap-2">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+                    Name
                     <input
-                      type="color"
-                      value={editForm.colour}
-                      onChange={e => setEditForm(f => ({ ...f, colour: e.target.value }))}
-                      className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
+                      value={editForm.name}
+                      onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                      className="border border-gray-300 rounded px-2 py-1.5 text-sm font-normal"
+                      autoFocus
                     />
-                    <button
-                      onClick={() => saveEdit(member.id)}
-                      className="flex-1 bg-orange text-white rounded text-sm font-medium hover:bg-orange-dark"
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+                    Nickname
+                    <input
+                      value={editForm.nickname}
+                      onChange={e => setEditForm(f => ({ ...f, nickname: e.target.value }))}
+                      className="border border-gray-300 rounded px-2 py-1.5 text-sm font-normal"
+                      placeholder="Optional"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+                    Role
+                    <select
+                      value={editForm.role}
+                      onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
+                      className="border border-gray-300 rounded px-2 py-1.5 text-sm font-normal"
                     >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="px-3 text-sm text-gray-600 hover:text-gray-800"
-                    >
-                      Cancel
-                    </button>
+                      {TEAM_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+                    Day Rate (£)
+                    <input
+                      type="number"
+                      value={editForm.day_rate}
+                      onChange={e => setEditForm(f => ({ ...f, day_rate: e.target.value }))}
+                      className="border border-gray-300 rounded px-2 py-1.5 text-sm font-normal"
+                    />
+                  </label>
+                  <div className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+                    Colour
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={editForm.colour}
+                        onChange={e => setEditForm(f => ({ ...f, colour: e.target.value }))}
+                        className="w-10 h-9 rounded border border-gray-300 cursor-pointer"
+                      />
+                      <button
+                        onClick={() => saveEdit(member.id)}
+                        className="flex-1 bg-orange text-white rounded text-sm font-medium hover:bg-orange-dark"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="px-3 text-sm text-gray-600 hover:text-gray-800"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 </div>
+                <label className="flex flex-col gap-1 text-xs font-medium text-gray-600 mt-3">
+                  Pay Notes (optional — for anyone not on a simple day rate, e.g. subcontractors)
+                  <input
+                    placeholder="e.g. Paid per m² by Ross — invoiced separately"
+                    value={editForm.pay_notes}
+                    onChange={e => setEditForm(f => ({ ...f, pay_notes: e.target.value }))}
+                    className="border border-gray-300 rounded px-2 py-1.5 text-sm font-normal w-full"
+                  />
+                </label>
               </div>
             )
           }
