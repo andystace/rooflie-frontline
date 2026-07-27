@@ -87,9 +87,19 @@ export function useTeam() {
   }
 
   async function deleteMember(id) {
+    const { error: clearError } = await supabase.from('team_members').update({ default_partner_id: null }).eq('default_partner_id', id)
+    if (clearError) throw clearError
     const { error } = await supabase.from('team_members').delete().eq('id', id)
     if (error) throw error
     setTeam(prev => prev.filter(m => m.id !== id))
+  }
+
+  async function deleteMembers(ids) {
+    const { error: clearError } = await supabase.from('team_members').update({ default_partner_id: null }).in('default_partner_id', ids)
+    if (clearError) throw clearError
+    const { error } = await supabase.from('team_members').delete().in('id', ids)
+    if (error) throw error
+    setTeam(prev => prev.filter(m => !ids.includes(m.id)))
   }
 
   function getPartner(memberId) {
@@ -98,5 +108,5 @@ export function useTeam() {
     return team.find(m => m.id === member.default_partner_id) || null
   }
 
-  return { team, activeTeam, sortedTeam, sortedActiveTeam, loading, fetchTeam, createMember, updateMember, deleteMember, getPartner }
+  return { team, activeTeam, sortedTeam, sortedActiveTeam, loading, fetchTeam, createMember, updateMember, deleteMember, deleteMembers, getPartner }
 }
